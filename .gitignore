@@ -1,0 +1,14 @@
+node_modules/
+*.log
+.env
+.DS_Store
+uploads/*
+!uploads/.gitkeep
+temp/*
+!temp/.gitkeep
+*.cer
+*.key
+*.pfx
+*.p12
+test-pdfs/*
+!test-pdfs/.gitkeep

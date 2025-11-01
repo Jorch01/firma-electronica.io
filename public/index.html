@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firma Electrónica México - e.firma SAT y PFX</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1>🔐 Firma Electrónica México</h1>
+                <p class="subtitle">Firma digital de PDFs con e.firma SAT y certificados PFX</p>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-button active" data-tab="sign">Firmar Documento</button>
+                <button class="tab-button" data-tab="validate">Validar Firmas</button>
+                <button class="tab-button" data-tab="info">Información PDF</button>
+            </div>
+
+            <!-- Tab: Firmar Documento -->
+            <div id="sign-tab" class="tab-content active">
+                <div class="card">
+                    <h2>Firmar Documento PDF</h2>
+
+                    <!-- Tipo de Certificado -->
+                    <div class="form-group">
+                        <label>Tipo de Certificado</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="certType" value="EFIRMA_SAT" checked>
+                                <span>e.firma SAT (.cer + .key)</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="certType" value="PFX">
+                                <span>Certificado PFX/P12</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Carga de Certificados -->
+                    <div id="efirma-files" class="cert-files">
+                        <div class="form-group">
+                            <label for="cerFile">Archivo .cer</label>
+                            <input type="file" id="cerFile" accept=".cer" class="file-input">
+                            <div class="file-status" id="cerStatus"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="keyFile">Archivo .key</label>
+                            <input type="file" id="keyFile" accept=".key" class="file-input">
+                            <div class="file-status" id="keyStatus"></div>
+                        </div>
+                    </div>
+
+                    <div id="pfx-files" class="cert-files" style="display: none;">
+                        <div class="form-group">
+                            <label for="pfxFile">Archivo PFX/P12</label>
+                            <input type="file" id="pfxFile" accept=".pfx,.p12" class="file-input">
+                            <div class="file-status" id="pfxStatus"></div>
+                        </div>
+                    </div>
+
+                    <!-- Contraseña -->
+                    <div class="form-group">
+                        <label for="certPassword">Contraseña del Certificado</label>
+                        <input type="password" id="certPassword" class="text-input" placeholder="Ingrese la contraseña">
+                    </div>
+
+                    <!-- PDF a Firmar -->
+                    <div class="form-group">
+                        <label for="pdfFile">Documento PDF a Firmar</label>
+                        <div class="drop-zone" id="dropZone">
+                            <div class="drop-zone-content">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <p>Arrastra el PDF aquí o haz clic para seleccionar</p>
+                                <input type="file" id="pdfFile" accept=".pdf" class="file-input-hidden">
+                            </div>
+                            <div class="file-status" id="pdfStatus"></div>
+                        </div>
+                    </div>
+
+                    <!-- Opciones de Firma -->
+                    <div class="options-section">
+                        <h3>Opciones de Firma</h3>
+
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="visibleSignature" checked>
+                                <span>Firma visible en el documento</span>
+                            </label>
+                        </div>
+
+                        <div id="signatureOptions" class="signature-options">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="signaturePage">Página</label>
+                                    <input type="number" id="signaturePage" class="text-input" value="0" min="0" placeholder="0 = última página">
+                                </div>
+                                <div class="form-group">
+                                    <label for="signatureX">Posición X</label>
+                                    <input type="number" id="signatureX" class="text-input" value="50" min="0">
+                                </div>
+                                <div class="form-group">
+                                    <label for="signatureY">Posición Y</label>
+                                    <input type="number" id="signatureY" class="text-input" value="50" min="0">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="signatureReason">Motivo de la Firma</label>
+                                <input type="text" id="signatureReason" class="text-input" value="Firma Electrónica" placeholder="Ej: Aprobación de documento">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="signatureLocation">Ubicación</label>
+                                <input type="text" id="signatureLocation" class="text-input" value="México" placeholder="Ej: Ciudad de México">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="certLevel">Nivel de Certificación</label>
+                            <select id="certLevel" class="text-input">
+                                <option value="0">No certificado (permite modificaciones)</option>
+                                <option value="1">Certificado - No se permiten cambios</option>
+                                <option value="2">Certificado - Permitido llenar formularios</option>
+                                <option value="3">Certificado - Permitidas anotaciones</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="includeTimestamp">
+                                <span>Incluir marca de tiempo (timestamp)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Botón de Firma -->
+                    <button id="signButton" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        Firmar Documento
+                    </button>
+
+                    <div id="signResult" class="result-container"></div>
+                </div>
+            </div>
+
+            <!-- Tab: Validar Firmas -->
+            <div id="validate-tab" class="tab-content">
+                <div class="card">
+                    <h2>Validar Firmas de Documento</h2>
+
+                    <div class="form-group">
+                        <label for="validatePdfFile">Documento PDF a Validar</label>
+                        <div class="drop-zone" id="validateDropZone">
+                            <div class="drop-zone-content">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 11l3 3L22 4"></path>
+                                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                                </svg>
+                                <p>Arrastra el PDF aquí o haz clic para seleccionar</p>
+                                <input type="file" id="validatePdfFile" accept=".pdf" class="file-input-hidden">
+                            </div>
+                            <div class="file-status" id="validatePdfStatus"></div>
+                        </div>
+                    </div>
+
+                    <button id="validateButton" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        Validar Firmas
+                    </button>
+
+                    <div id="validateResult" class="result-container"></div>
+                </div>
+            </div>
+
+            <!-- Tab: Información PDF -->
+            <div id="info-tab" class="tab-content">
+                <div class="card">
+                    <h2>Información del Documento PDF</h2>
+
+                    <div class="form-group">
+                        <label for="infoPdfFile">Documento PDF</label>
+                        <div class="drop-zone" id="infoDropZone">
+                            <div class="drop-zone-content">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                </svg>
+                                <p>Arrastra el PDF aquí o haz clic para seleccionar</p>
+                                <input type="file" id="infoPdfFile" accept=".pdf" class="file-input-hidden">
+                            </div>
+                            <div class="file-status" id="infoPdfStatus"></div>
+                        </div>
+                    </div>
+
+                    <button id="infoButton" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        Obtener Información
+                    </button>
+
+                    <div id="infoResult" class="result-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="loading-spinner"></div>
+            <p id="loadingMessage">Procesando...</p>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
