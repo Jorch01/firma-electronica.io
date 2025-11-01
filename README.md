@@ -1,278 +1,226 @@
-# 🔐 Firma Electrónica México
+# 🔐 Firma Electrónica México - Aplicación Web
 
-Aplicación web completa para firma electrónica de documentos PDF compatible con **e.firma del SAT** y **certificados PFX** del Poder Judicial de la Federación y otras autoridades certificadoras.
+**Aplicación web 100% del lado del cliente para firma electrónica de documentos PDF**
 
-## ✨ Características
+Compatible con **e.firma del SAT** y **certificados PFX** del Poder Judicial de la Federación.
 
-### Compatibilidad de Certificados
+---
+
+## ✨ Características Principales
+
+### 🔒 100% Seguro - Todo Ocurre en tu Navegador
+- **Sin servidor**: Todo el procesamiento se realiza localmente en tu navegador
+- **Privacidad total**: Tus certificados y documentos nunca salen de tu computadora
+- **Funciona offline**: Después de cargar la página, puedes desconectar internet
+
+### 📝 Firma Digital Completa
 - ✅ **e.firma SAT** (archivos .cer + .key con contraseña)
 - ✅ **Certificados PFX/PKCS#12** (.pfx, .p12 del Poder Judicial y otros)
+- 🖊️ **Firma visible** con selección interactiva de área en el PDF
+- 👁️ **Firma invisible** (solo firma digital sin representación visual)
+- ⏰ **Timestamp** (marca de tiempo automática)
+- 🔐 **Hash SHA-256** para verificación de integridad
 
-### Funcionalidades de Firma
-- 🖊️ **Firma visible** con selección de posición y página
-- 👁️ **Firma invisible** (solo firma digital)
-- 📄 **Múltiples niveles de certificación**:
-  - No certificado (permite modificaciones posteriores)
-  - Certificado sin cambios permitidos
-  - Certificado con llenado de formularios permitido
+### 🎯 Funciones Avanzadas
+- **Visor de PDF integrado**: Visualiza y navega por el documento antes de firmar
+- **Selección de área interactiva**: Haz clic y arrastra para posicionar la firma
+- **Niveles de certificación**:
+  - No certificado (documento abierto a más firmas)
+  - Certificado sin cambios permitidos (documento cerrado)
+  - Certificado con formularios permitidos
   - Certificado con anotaciones permitidas
-- ⏰ **Timestamp** (marca de tiempo)
-- 📝 **Metadatos personalizables** (motivo, ubicación, contacto)
+- **Firma por lotes**: Firma múltiples documentos a la vez
+- **Validación de firmas**: Verifica firmas existentes en PDFs
+- **Metadatos personalizables**: Razón, ubicación, información de contacto
 
-### Validación y Seguridad
-- ✓ **Validación de firmas existentes**
-- 🔒 **Verificación de integridad** (hash SHA-256)
-- 📊 **Extracción de información del PDF**
-- 🔍 **Inspección de certificados**
+### 🎨 Interfaz Moderna
+- Diseño responsive (móviles, tablets, escritorio)
+- Drag & drop para archivos
+- Navegación intuitiva por pestañas
+- Feedback visual en tiempo real
+- Descarga automática de PDFs firmados
 
-### Interfaz de Usuario
-- 🎨 **Diseño moderno y responsive**
-- 📱 **Compatible con móviles y tablets**
-- 🖱️ **Drag & drop** para archivos
-- ⚡ **Interfaz intuitiva y fácil de usar**
+---
 
-## 🚀 Instalación
+## 🚀 Cómo Usar
 
-### Requisitos Previos
-- Node.js 18 o superior
-- npm o yarn
+### 1. Abrir la Aplicación
 
-### Pasos de Instalación
+Simplemente abre `public/index.html` en tu navegador, o despliega en cualquier hosting estático:
 
-1. **Clonar el repositorio**
 ```bash
-git clone https://github.com/Jorch01/firma-electronica.io.git
-cd firma-electronica.io
+# Con cualquier servidor web estático
+cd public
+python -m http.server 8000
+# Abre http://localhost:8000
 ```
 
-2. **Instalar dependencias**
-```bash
-npm install
-```
+### 2. Firmar un Documento
 
-3. **Iniciar el servidor**
-```bash
-npm start
-```
+#### Paso 1: Cargar Certificado
 
-Para desarrollo con hot-reload:
-```bash
-npm run dev
-```
+**Para e.firma SAT:**
+1. Selecciona "e.firma SAT"
+2. Carga tu archivo `.cer` (certificado)
+3. Carga tu archivo `.key` (llave privada)
+4. Ingresa tu contraseña
+5. Haz clic en "Cargar y Validar Certificado"
 
-4. **Abrir en el navegador**
-```
-http://localhost:3000
-```
-
-## 📖 Uso
-
-### 1. Firmar un Documento
-
-#### Con e.firma SAT:
-1. Selecciona "e.firma SAT (.cer + .key)"
-2. Carga tu archivo `.cer`
-3. Carga tu archivo `.key`
-4. Ingresa la contraseña de tu e.firma
-5. Arrastra o selecciona el PDF a firmar
-6. Configura las opciones de firma:
-   - Firma visible/invisible
-   - Posición en el documento (X, Y, página)
-   - Motivo y ubicación
-   - Nivel de certificación
-7. Haz clic en "Firmar Documento"
-8. Descarga tu PDF firmado
-
-#### Con Certificado PFX:
-1. Selecciona "Certificado PFX/P12"
+**Para Certificado PFX:**
+1. Selecciona "Certificado PFX"
 2. Carga tu archivo `.pfx` o `.p12`
-3. Ingresa la contraseña del certificado
-4. Sigue los pasos 5-8 anteriores
+3. Ingresa tu contraseña
+4. Haz clic en "Cargar y Validar Certificado"
 
-### 2. Validar Firmas
+#### Paso 2: Cargar PDF
+- Arrastra tu PDF o haz clic para seleccionarlo
+- El visor de PDF se abrirá automáticamente
 
+#### Paso 3: Configurar y Firmar
+- Activa/desactiva firma visible
+- Haz clic y arrastra en el PDF para seleccionar dónde colocar la firma
+- Configura razón, ubicación y nivel de certificación
+- Haz clic en "Firmar Documento Ahora"
+- El PDF firmado se descargará automáticamente
+
+### 3. Validar Firmas
 1. Ve a la pestaña "Validar Firmas"
-2. Arrastra o selecciona el PDF firmado
+2. Arrastra el PDF firmado
 3. Haz clic en "Validar Firmas"
-4. Revisa el reporte de validación que incluye:
-   - Estado de cada firma (válida/inválida)
-   - Información del firmante
-   - Fecha de firma
-   - Hash de integridad
-   - Metadatos del documento
+4. Revisa el reporte de validación
 
-### 3. Información del PDF
+### 4. Firma por Lotes
+1. Carga tu certificado en la pestaña principal
+2. Ve a "Firma por Lotes"
+3. Selecciona múltiples PDFs
+4. Haz clic en "Firmar Todos los Documentos"
+5. Todos los PDFs firmados se descargarán automáticamente
 
-1. Ve a la pestaña "Información PDF"
-2. Arrastra o selecciona el PDF
-3. Haz clic en "Obtener Información"
-4. Revisa los metadatos del documento:
-   - Número de páginas
-   - Título, autor, asunto
-   - Fechas de creación y modificación
-   - Productor y creador
+---
 
-## 🔧 Configuración
+## 🏗️ Arquitectura
 
-### Variables de Entorno
+### Tecnologías
 
-Crea un archivo `.env` (opcional):
+**Frontend Puro:**
+- HTML5, CSS3, JavaScript (ES6+)
+- Sin frameworks pesados - máxima compatibilidad
 
-```env
-PORT=3000
-NODE_ENV=production
-```
+**Librerías (vía CDN):**
+- [pdf-lib](https://pdf-lib.js.org/) - Manipulación de PDFs
+- [node-forge](https://github.com/digitalbazaar/forge) - Criptografía y certificados
+- [PDF.js](https://mozilla.github.io/pdf.js/) - Visualización de PDFs
 
-### Configuración del Servidor
-
-Edita `server/index.js` para ajustar:
-- Puerto del servidor
-- Límites de tamaño de archivo
-- Configuración de CORS
-
-## 📁 Estructura del Proyecto
+### Estructura del Proyecto
 
 ```
 firma-electronica.io/
-├── server/
-│   ├── controllers/
-│   │   └── signatureController.js    # Controladores de API
-│   ├── routes/
-│   │   └── signatureRoutes.js        # Rutas de API
-│   ├── utils/
-│   │   ├── certificateHandler.js     # Manejo de certificados
-│   │   └── pdfSigner.js              # Firma de PDFs
-│   └── index.js                      # Servidor principal
 ├── public/
+│   ├── index.html                      # Aplicación principal
 │   ├── css/
-│   │   └── styles.css                # Estilos de la aplicación
-│   ├── js/
-│   │   └── app.js                    # Lógica del frontend
-│   ├── assets/                       # Recursos estáticos
-│   └── index.html                    # Página principal
-├── uploads/                          # Archivos temporales de subida
-├── temp/                             # Archivos firmados temporales
-├── test-pdfs/                        # PDFs de prueba
-├── package.json
-├── .gitignore
-└── README.md
+│   │   └── styles.css                  # Estilos
+│   └── js/
+│       ├── certificateHandler.js       # Manejo de certificados
+│       ├── pdfSigner.js                # Firma de PDFs
+│       ├── pdfValidator.js             # Validación de firmas
+│       ├── pdfViewer.js                # Visor de PDF
+│       └── app.js                      # Lógica principal
+├── README.md
+├── LICENSE
+└── SECURITY.md
 ```
+
+---
 
 ## 🔒 Seguridad
 
-### Buenas Prácticas Implementadas
+### Principios de Seguridad
 
-- ✅ Las contraseñas **nunca se almacenan** en el servidor
-- ✅ Los certificados se procesan en memoria y se eliminan inmediatamente
-- ✅ Los archivos temporales se eliminan automáticamente después de su uso
-- ✅ Validación de tipos de archivo en servidor y cliente
-- ✅ Límites de tamaño de archivo (50MB por defecto)
-- ✅ CORS configurado para mayor seguridad
+✅ **Tu privacidad es lo primero:**
+- Contraseñas nunca se almacenan (solo se usan en memoria)
+- Certificados se procesan exclusivamente en tu navegador
+- Sin comunicación con servidores externos (excepto CDN de librerías)
+- Sin cookies, sin tracking, sin analytics
 
-### Recomendaciones Adicionales
+✅ **Código abierto:**
+- Todo el código es visible y auditable
+- Sin código ofuscado
+- Puedes ejecutarlo completamente offline
 
-Para uso en producción:
-1. Usar HTTPS/TLS
-2. Implementar autenticación de usuarios
-3. Agregar rate limiting
-4. Usar sesiones seguras
-5. Implementar logging y auditoría
-6. Configurar un firewall de aplicación web (WAF)
+### Recomendaciones
 
-## 🛠️ API REST
+1. **Verifica siempre** que estás usando la aplicación desde una fuente confiable
+2. **Usa conexión segura** (HTTPS) si la despliegas en un servidor
+3. **Mantén actualizados** tus certificados digitales
+4. **Verifica las firmas** de documentos importantes
+5. **Guarda tus certificados** en un lugar seguro
 
-### Endpoints Disponibles
+---
 
-#### POST `/api/sign`
-Firma un documento PDF
+## 🌐 Despliegue
 
-**Body (multipart/form-data):**
-- `pdfFile`: Archivo PDF a firmar
-- `cerFile`: Archivo .cer (para e.firma)
-- `keyFile`: Archivo .key (para e.firma)
-- `pfxFile`: Archivo .pfx (para PFX)
-- `password`: Contraseña del certificado
-- `type`: "EFIRMA_SAT" o "PFX"
-- `signatureOptions`: JSON con opciones de firma
+### Hosting Estático
 
-**Response:**
-```json
-{
-  "success": true,
-  "signatureInfo": { ... },
-  "downloadUrl": "/api/download/signed_xxx.pdf"
-}
-```
+Puedes desplegar esta aplicación en cualquier servicio de hosting estático:
 
-#### POST `/api/validate`
-Valida las firmas de un PDF
-
-**Body (multipart/form-data):**
-- `pdfFile`: Archivo PDF a validar
-
-**Response:**
-```json
-{
-  "success": true,
-  "signatures": [ ... ],
-  "documentInfo": { ... },
-  "isValid": true
-}
-```
-
-#### POST `/api/pdf-info`
-Obtiene información de un PDF
-
-**Body (multipart/form-data):**
-- `pdfFile`: Archivo PDF
-
-**Response:**
-```json
-{
-  "success": true,
-  "info": {
-    "pageCount": 5,
-    "title": "...",
-    "author": "...",
-    ...
-  }
-}
-```
-
-#### GET `/api/download/:filename`
-Descarga un archivo firmado
-
-## 🧪 Pruebas
-
-Para probar la aplicación necesitas:
-1. Un certificado e.firma del SAT válido (archivos .cer y .key)
-2. O un certificado PFX válido (.pfx o .p12)
-3. Uno o varios archivos PDF para firmar
-
-Coloca tus PDFs de prueba en la carpeta `test-pdfs/`.
-
+**GitHub Pages:**
 ```bash
-npm test
+# Fork el repositorio y activa GitHub Pages en la rama main
 ```
 
-## 📚 Tecnologías
+**Netlify:**
+```bash
+# Arrastra la carpeta 'public' a Netlify
+```
 
-### Backend
-- **Node.js** - Runtime de JavaScript
-- **Express** - Framework web
-- **pdf-lib** - Manipulación de PDFs
-- **node-forge** - Criptografía y certificados digitales
-- **multer** - Manejo de archivos multipart
+**Vercel:**
+```bash
+# Conecta tu repositorio a Vercel
+```
 
-### Frontend
-- **HTML5** - Estructura
-- **CSS3** - Estilos modernos
-- **JavaScript (ES6+)** - Lógica de la aplicación
-- **Fetch API** - Comunicación con el servidor
+**Servidor Web:**
+```bash
+# Copia la carpeta 'public' a tu servidor web
+cp -r public/* /var/www/html/firma-electronica/
+```
+
+---
+
+## 📖 Documentación Técnica
+
+### Carga de Certificados
+
+La aplicación soporta dos formatos:
+
+1. **e.firma SAT**: Formato DER separado (.cer + .key)
+   - Certificado público en formato DER
+   - Llave privada encriptada con contraseña
+
+2. **PFX/PKCS#12**: Formato unificado (.pfx, .p12)
+   - Contiene certificado y llave privada juntos
+   - Protegido por contraseña
+
+### Proceso de Firma
+
+1. **Carga del PDF**: Se lee el archivo en memoria usando FileReader API
+2. **Procesamiento**: pdf-lib manipula el PDF para agregar la firma visual
+3. **Firma criptográfica**: node-forge genera el hash SHA-256 y lo firma con la llave privada
+4. **Metadatos**: Se agregan metadatos al PDF con información de la firma
+5. **Descarga**: El PDF firmado se genera como Blob y se descarga automáticamente
+
+### Validación de Firmas
+
+La aplicación puede validar:
+- Firmas realizadas por esta misma aplicación
+- Metadatos embebidos en el PDF
+- Hash de integridad del documento
+- Información del certificado utilizado
+
+---
 
 ## 🤝 Contribuir
 
-Las contribuciones son bienvenidas. Por favor:
+Las contribuciones son bienvenidas:
 
 1. Fork el proyecto
 2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
@@ -280,44 +228,52 @@ Las contribuciones son bienvenidas. Por favor:
 4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
 
-## 📝 Licencia
+---
 
-Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
+## 📄 Licencia
 
-## 👥 Autores
-
-- **Desarrollador Principal** - [Jorch01](https://github.com/Jorch01)
-
-## 🙏 Agradecimientos
-
-- SAT (Servicio de Administración Tributaria) por la especificación de e.firma
-- Poder Judicial de la Federación por los estándares de certificados digitales
-- Comunidad de código abierto por las librerías utilizadas
-
-## 📞 Soporte
-
-Si encuentras algún problema o tienes alguna pregunta:
-- Abre un [Issue](https://github.com/Jorch01/firma-electronica.io/issues)
-- Consulta la [documentación](https://github.com/Jorch01/firma-electronica.io/wiki)
-
-## 🔮 Roadmap
-
-Características futuras planeadas:
-- [ ] Firma de múltiples documentos en lote
-- [ ] Soporte para más formatos de certificados
-- [ ] Integración con TSA (Time Stamping Authority)
-- [ ] API de validación de certificados en línea
-- [ ] Firma de documentos en la nube
-- [ ] Modo de firma biométrica
-- [ ] Generación de reportes de auditoría
-- [ ] Dashboard de administración
-- [ ] Autenticación de usuarios
-- [ ] Integración con sistemas externos
-
-## ⚖️ Legal
-
-Esta aplicación es una herramienta de software para firma electrónica. Los usuarios son responsables del uso apropiado de sus certificados digitales y del cumplimiento de las leyes y regulaciones aplicables en su jurisdicción.
+Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
 
 ---
 
-**Hecho con ❤️ en México**
+## 🙏 Agradecimientos
+
+- **SAT** (Servicio de Administración Tributaria) por el formato e.firma
+- **Poder Judicial de la Federación** por los estándares de certificados digitales
+- Comunidad open source por las excelentes librerías JavaScript
+
+---
+
+## ❓ FAQ
+
+### ¿Es realmente seguro?
+Sí. Todo el procesamiento ocurre en tu navegador. Puedes verificar el código fuente y ejecutarlo offline.
+
+### ¿Funciona sin conexión a internet?
+Sí. Después de cargar la página por primera vez (que necesita descargar las librerías), puedes desconectarte y seguir usándola.
+
+### ¿Las firmas son legalmente válidas?
+Esta aplicación genera firmas digitales con certificados válidos. Sin embargo, la validez legal depende del contexto y las leyes locales. Consulta con un abogado para tu caso específico.
+
+### ¿Puedo usar esto en mi empresa?
+Sí, es open source bajo licencia MIT. Puedes modificarlo y desplegarlo internamente.
+
+### ¿En qué navegadores funciona?
+Chrome, Firefox, Edge, Safari y Opera modernos. Se recomienda usar las últimas versiones.
+
+### ¿Guarda mis documentos o certificados?
+No. Todo se procesa en memoria y se descarta inmediatamente.
+
+---
+
+## 📞 Soporte
+
+- **Issues**: [GitHub Issues](https://github.com/Jorch01/firma-electronica.io/issues)
+- **Documentación**: Este README y comentarios en el código
+- **Seguridad**: Ver [SECURITY.md](SECURITY.md)
+
+---
+
+**Hecho con ❤️ para México 🇲🇽**
+
+*Democratizando la firma electrónica, una línea de código a la vez.*
