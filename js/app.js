@@ -321,7 +321,7 @@ function initializeValidationSection() {
     });
 
     ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName', () => dropZone.classList.add('drag-over'));
+        dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'));
     });
 
     ['dragleave', 'drop'].forEach(eventName => {
