@@ -197,14 +197,16 @@ class PDFSigner {
         // Metadatos personalizados (se guardan en el PDF)
         const certInfo = window.certHandler.certificateInfo;
         this.pdfDoc.setSubject(`Firmado por: ${certInfo.subjectString}`);
-        this.pdfDoc.setKeywords([
-            `Firma:${signature.hash}`,
-            `Razón:${reason}`,
-            `Ubicación:${location}`,
-            `Certificación:${certificationLevel}`,
-            `Tipo:${certInfo.type}`,
-            includeTimestamp ? `Timestamp:${new Date().toISOString()}` : ''
-        ].filter(k => k).join('; '));
+        this.pdfDoc.setKeywords(
+            [
+                `Firma:${signature.hash}`,
+                `Razón:${reason}`,
+                `Ubicación:${location}`,
+                `Certificación:${certificationLevel}`,
+                `Tipo:${certInfo.type}`,
+                includeTimestamp ? `Timestamp:${new Date().toISOString()}` : ''
+            ].filter(k => k)
+        );
     }
 
     /**
