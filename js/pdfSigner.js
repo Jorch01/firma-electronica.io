@@ -81,31 +81,52 @@ class PDFSigner {
             console.log('📄 Serializando PDF con pdf-lib...');
             const pdfWithVisibleSignature = await this.pdfDoc.save();
 
+            // Debugging: Verificar el PDF ANTES de pasarlo a PDFSIGN
+            console.log('🔍 DEBUGGING - PDF antes de PDFSIGN:');
+            console.log('   - Tipo:', pdfWithVisibleSignature.constructor.name);
+            console.log('   - Tamaño:', pdfWithVisibleSignature.length || pdfWithVisibleSignature.byteLength, 'bytes');
+            const headerBefore = String.fromCharCode(...pdfWithVisibleSignature.slice(0, 4));
+            console.log('   - Header:', headerBefore, headerBefore === '%PDF' ? '✅' : '❌');
+
             // Obtener contraseña del certificado del almacenamiento temporal
             const certPassword = window.certHandler.lastPassword || password;
             if (!certPassword) {
                 throw new Error('Se requiere la contraseña del certificado para firmar digitalmente');
             }
+            console.log('🔑 Contraseña disponible:', certPassword ? 'Sí (longitud: ' + certPassword.length + ')' : 'No');
 
             // Convertir certificado a formato PKCS#12 para pdfsign.js
             console.log('🔑 Convirtiendo certificado a PKCS#12...');
             const p12Bytes = window.certHandler.getPKCS12Bytes(certPassword);
+            console.log('🔍 DEBUGGING - P12:');
+            console.log('   - Tipo:', p12Bytes.constructor.name);
+            console.log('   - Tamaño:', p12Bytes.length || p12Bytes.byteLength, 'bytes');
 
             // Verificar que PDFSIGN está disponible
             if (typeof PDFSIGN === 'undefined' || !PDFSIGN.signpdf) {
                 throw new Error('Biblioteca PDFSIGN no está cargada');
             }
+            console.log('✅ PDFSIGN está disponible');
 
             // Firmar con pdfsign.js para compatibilidad con Adobe
             console.log('✍️ Firmando con PDFSIGN para Adobe Acrobat...');
-            const signedPdfBytes = PDFSIGN.signpdf(
-                pdfWithVisibleSignature,
-                p12Bytes,
-                certPassword
-            );
+            console.log('   Llamando: PDFSIGN.signpdf(pdfUint8Array, p12Uint8Array, password)');
+
+            let signedPdfBytes;
+            try {
+                signedPdfBytes = PDFSIGN.signpdf(
+                    pdfWithVisibleSignature,
+                    p12Bytes,
+                    certPassword
+                );
+                console.log('✅ PDFSIGN.signpdf() completado sin excepciones');
+            } catch (pdfsignError) {
+                console.error('❌ Error en PDFSIGN.signpdf():', pdfsignError);
+                throw new Error(`PDFSIGN falló: ${pdfsignError.message}`);
+            }
 
             console.log('✅ PDF firmado digitalmente - Compatible con Adobe Acrobat');
-            console.log('📊 Tipo de resultado:', signedPdfBytes.constructor.name);
+            console.log('📊 Tipo de resultado:', signedPdfBytes ? signedPdfBytes.constructor.name : 'null/undefined');
             console.log('📊 Tamaño del PDF firmado:', signedPdfBytes.length || signedPdfBytes.byteLength, 'bytes');
 
             // Asegurar que sea Uint8Array
