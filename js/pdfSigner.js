@@ -105,13 +105,43 @@ class PDFSigner {
             );
 
             console.log('✅ PDF firmado digitalmente - Compatible con Adobe Acrobat');
+            console.log('📊 Tipo de resultado:', signedPdfBytes.constructor.name);
+            console.log('📊 Tamaño del PDF firmado:', signedPdfBytes.length || signedPdfBytes.byteLength, 'bytes');
+
+            // Asegurar que sea Uint8Array
+            let finalPdfBytes;
+            if (signedPdfBytes instanceof Uint8Array) {
+                finalPdfBytes = signedPdfBytes;
+            } else if (signedPdfBytes instanceof ArrayBuffer) {
+                finalPdfBytes = new Uint8Array(signedPdfBytes);
+            } else if (typeof signedPdfBytes === 'string') {
+                // Convertir string binario a Uint8Array
+                const bytes = new Uint8Array(signedPdfBytes.length);
+                for (let i = 0; i < signedPdfBytes.length; i++) {
+                    bytes[i] = signedPdfBytes.charCodeAt(i);
+                }
+                finalPdfBytes = bytes;
+            } else {
+                console.error('❌ Tipo de PDF firmado no reconocido:', typeof signedPdfBytes);
+                throw new Error('Formato de PDF firmado no válido');
+            }
+
+            console.log('✅ PDF convertido a Uint8Array:', finalPdfBytes.length, 'bytes');
+
+            // Verificar que sea un PDF válido (debe empezar con %PDF)
+            const header = String.fromCharCode(...finalPdfBytes.slice(0, 4));
+            console.log('📄 Header del PDF:', header);
+            if (header !== '%PDF') {
+                console.error('❌ El archivo no parece ser un PDF válido. Header:', header);
+                throw new Error('El PDF firmado no tiene un formato válido');
+            }
 
             // Calcular hash final del PDF firmado
-            const finalHash = window.certHandler.createHash(signedPdfBytes);
+            const finalHash = window.certHandler.createHash(finalPdfBytes);
 
             return {
                 success: true,
-                pdfBytes: signedPdfBytes,
+                pdfBytes: finalPdfBytes,
                 signature: {
                     hash: finalHash,
                     algorithm: 'SHA256withRSA (PKCS#7)',
