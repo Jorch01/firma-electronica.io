@@ -156,13 +156,6 @@ class PDFSigner {
             });
             textY -= lineHeight;
         }
-
-        // Símbolo de firma digital
-        page.drawText('🔒', {
-            x: adjustedX + boxWidth - 30,
-            y: adjustedY - boxHeight + 10,
-            size: 20
-        });
     }
 
     /**
