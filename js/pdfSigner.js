@@ -110,16 +110,39 @@ class PDFSigner {
 
             // Firmar con pdfsign.js para compatibilidad con Adobe
             console.log('✍️ Firmando con PDFSIGN para Adobe Acrobat...');
-            console.log('   Llamando: PDFSIGN.signpdf(pdfUint8Array, p12Uint8Array, password)');
+
+            // SOLUCIÓN: Convertir Uint8Array a string binario
+            // pdfsign.js puede esperar string en lugar de Uint8Array
+            console.log('🔄 Convirtiendo PDF a string binario para pdfsign...');
+            let pdfString = '';
+            for (let i = 0; i < pdfWithVisibleSignature.length; i++) {
+                pdfString += String.fromCharCode(pdfWithVisibleSignature[i]);
+            }
+            console.log('   PDF convertido a string:', pdfString.length, 'caracteres');
+            console.log('   Primeros 4 caracteres:', pdfString.substring(0, 4));
 
             let signedPdfBytes;
             try {
-                signedPdfBytes = PDFSIGN.signpdf(
-                    pdfWithVisibleSignature,
+                console.log('   Llamando: PDFSIGN.signpdf(pdfString, p12Uint8Array, password)');
+                const signedPdfString = PDFSIGN.signpdf(
+                    pdfString,  // String en lugar de Uint8Array
                     p12Bytes,
                     certPassword
                 );
                 console.log('✅ PDFSIGN.signpdf() completado sin excepciones');
+                console.log('   Tipo retornado:', typeof signedPdfString);
+                console.log('   Longitud:', signedPdfString.length || signedPdfString.byteLength);
+
+                // Convertir resultado a Uint8Array
+                if (typeof signedPdfString === 'string') {
+                    console.log('🔄 Convirtiendo resultado de string a Uint8Array...');
+                    signedPdfBytes = new Uint8Array(signedPdfString.length);
+                    for (let i = 0; i < signedPdfString.length; i++) {
+                        signedPdfBytes[i] = signedPdfString.charCodeAt(i) & 0xFF;
+                    }
+                } else {
+                    signedPdfBytes = signedPdfString;
+                }
             } catch (pdfsignError) {
                 console.error('❌ Error en PDFSIGN.signpdf():', pdfsignError);
                 throw new Error(`PDFSIGN falló: ${pdfsignError.message}`);
