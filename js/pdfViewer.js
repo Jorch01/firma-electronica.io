@@ -97,27 +97,30 @@ class PDFViewer {
     setupAreaSelection() {
         const container = this.canvas.parentElement;
 
-        this.canvas.addEventListener('mousedown', (e) => {
-            if (!document.getElementById('visibleSignature').checked) return;
+        // Función para iniciar selección
+        const startSelection = (clientX, clientY) => {
+            if (!document.getElementById('visibleSignature').checked) return false;
 
             this.isDrawing = true;
             const rect = this.canvas.getBoundingClientRect();
-            this.startX = e.clientX - rect.left;
-            this.startY = e.clientY - rect.top;
+            this.startX = clientX - rect.left;
+            this.startY = clientY - rect.top;
 
             this.signatureBox.style.left = this.startX + 'px';
             this.signatureBox.style.top = this.startY + 'px';
             this.signatureBox.style.width = '0px';
             this.signatureBox.style.height = '0px';
             this.signatureBox.style.display = 'block';
-        });
+            return true;
+        };
 
-        this.canvas.addEventListener('mousemove', (e) => {
+        // Función para mover selección
+        const moveSelection = (clientX, clientY) => {
             if (!this.isDrawing) return;
 
             const rect = this.canvas.getBoundingClientRect();
-            const currentX = e.clientX - rect.left;
-            const currentY = e.clientY - rect.top;
+            const currentX = clientX - rect.left;
+            const currentY = clientY - rect.top;
 
             const width = currentX - this.startX;
             const height = currentY - this.startY;
@@ -126,15 +129,16 @@ class PDFViewer {
                 this.signatureBox.style.width = width + 'px';
                 this.signatureBox.style.height = height + 'px';
             }
-        });
+        };
 
-        this.canvas.addEventListener('mouseup', (e) => {
+        // Función para finalizar selección
+        const endSelection = (clientX, clientY) => {
             if (!this.isDrawing) return;
             this.isDrawing = false;
 
             const rect = this.canvas.getBoundingClientRect();
-            const endX = e.clientX - rect.left;
-            const endY = e.clientY - rect.top;
+            const endX = clientX - rect.left;
+            const endY = clientY - rect.top;
 
             // Convertir coordenadas de canvas a coordenadas PDF
             const pdfX = Math.round((this.startX / this.scale));
@@ -144,7 +148,56 @@ class PDFViewer {
             document.getElementById('signatureX').value = pdfX;
             document.getElementById('signatureY').value = pdfY;
             document.getElementById('signaturePage').value = this.currentPage;
+        };
+
+        // Eventos de mouse
+        this.canvas.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startSelection(e.clientX, e.clientY);
         });
+
+        this.canvas.addEventListener('mousemove', (e) => {
+            e.preventDefault();
+            moveSelection(e.clientX, e.clientY);
+        });
+
+        this.canvas.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            endSelection(e.clientX, e.clientY);
+        });
+
+        // Eventos táctiles (touch)
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            if (startSelection(touch.clientX, touch.clientY)) {
+                // Mostrar mensaje de ayuda
+                console.log('📱 Arrastra para seleccionar el área de la firma');
+            }
+        });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length > 0) {
+                const touch = e.touches[0];
+                moveSelection(touch.clientX, touch.clientY);
+            }
+        });
+
+        this.canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (e.changedTouches.length > 0) {
+                const touch = e.changedTouches[0];
+                endSelection(touch.clientX, touch.clientY);
+            }
+        });
+
+        // Prevenir scroll mientras se dibuja en dispositivos móviles
+        this.canvas.addEventListener('touchmove', (e) => {
+            if (this.isDrawing) {
+                e.preventDefault();
+            }
+        }, { passive: false });
     }
 
     /**
