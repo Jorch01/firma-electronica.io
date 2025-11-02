@@ -28,7 +28,7 @@ class PDFSigner {
     }
 
     /**
-     * Firma el PDF
+     * Firma el PDF con firma digital compatible con Adobe Acrobat
      */
     async signPDF(options = {}) {
         if (!this.pdfDoc) {
@@ -48,12 +48,16 @@ class PDFSigner {
             location = 'México',
             contactInfo = '',
             certificationLevel = 0,
-            includeTimestamp = true
+            includeTimestamp = true,
+            password = '' // Contraseña del certificado (necesaria para P12)
         } = options;
 
         try {
+            console.log('🔐 Iniciando firma compatible con Adobe Acrobat...');
+
             // Agregar firma visible si se requiere
             if (visible) {
+                console.log('📝 Agregando firma visible...');
                 await this.addVisibleSignature({
                     page: page - 1, // pdf-lib usa índice base 0
                     x,
@@ -63,35 +67,67 @@ class PDFSigner {
                 });
             }
 
-            // Crear firma digital
-            const signature = this.createDigitalSignature();
-
-            // Agregar metadatos
+            // Agregar metadatos informativos
             this.addMetadata({
                 reason,
                 location,
                 contactInfo,
                 certificationLevel,
-                signature,
+                signature: { hash: 'Pending Adobe signature' },
                 includeTimestamp
             });
 
-            // Serializar PDF
-            const signedPdfBytes = await this.pdfDoc.save();
+            // Serializar PDF con firma visible y metadatos
+            console.log('📄 Serializando PDF con pdf-lib...');
+            const pdfWithVisibleSignature = await this.pdfDoc.save();
+
+            // Obtener contraseña del certificado del almacenamiento temporal
+            const certPassword = window.certHandler.lastPassword || password;
+            if (!certPassword) {
+                throw new Error('Se requiere la contraseña del certificado para firmar digitalmente');
+            }
+
+            // Convertir certificado a formato PKCS#12 para pdfsign.js
+            console.log('🔑 Convirtiendo certificado a PKCS#12...');
+            const p12Bytes = window.certHandler.getPKCS12Bytes(certPassword);
+
+            // Verificar que PDFSIGN está disponible
+            if (typeof PDFSIGN === 'undefined' || !PDFSIGN.signpdf) {
+                throw new Error('Biblioteca PDFSIGN no está cargada');
+            }
+
+            // Firmar con pdfsign.js para compatibilidad con Adobe
+            console.log('✍️ Firmando con PDFSIGN para Adobe Acrobat...');
+            const signedPdfBytes = PDFSIGN.signpdf(
+                pdfWithVisibleSignature,
+                p12Bytes,
+                certPassword
+            );
+
+            console.log('✅ PDF firmado digitalmente - Compatible con Adobe Acrobat');
+
+            // Calcular hash final del PDF firmado
+            const finalHash = window.certHandler.createHash(signedPdfBytes);
 
             return {
                 success: true,
                 pdfBytes: signedPdfBytes,
-                signature: signature,
+                signature: {
+                    hash: finalHash,
+                    algorithm: 'SHA256withRSA (PKCS#7)',
+                    adobeCompatible: true
+                },
                 metadata: {
                     signer: window.certHandler.certificateInfo.subjectString,
                     signDate: new Date().toISOString(),
                     reason,
                     location,
-                    certificationLevel: this.getCertificationLevelName(certificationLevel)
+                    certificationLevel: this.getCertificationLevelName(certificationLevel),
+                    adobeCompatible: '✓ Compatible con Adobe Acrobat Reader'
                 }
             };
         } catch (error) {
+            console.error('❌ Error en firma digital:', error);
             throw new Error(`Error firmando PDF: ${error.message}`);
         }
     }

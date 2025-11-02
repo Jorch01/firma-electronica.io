@@ -9,6 +9,7 @@ class CertificateHandler {
         this.privateKey = null;
         this.certificateInfo = null;
         this.type = null;
+        this.lastPassword = null; // Guardar contraseña para firma digital
 
         // Verificar que forge esté disponible
         if (typeof forge === 'undefined') {
@@ -72,6 +73,7 @@ class CertificateHandler {
             console.log('✅ Llave privada descifrada exitosamente');
 
             this.type = 'EFIRMA_SAT';
+            this.lastPassword = password; // Guardar para firma digital
             console.log('📋 Extrayendo información del certificado...');
             this.certificateInfo = this.extractCertificateInfo();
             console.log('✅ e.firma SAT cargada completamente:', this.certificateInfo);
@@ -137,6 +139,7 @@ class CertificateHandler {
             console.log('✅ Llave privada extraída');
 
             this.type = 'PFX';
+            this.lastPassword = password; // Guardar para firma digital
             console.log('📋 Extrayendo información del certificado...');
             this.certificateInfo = this.extractCertificateInfo();
             console.log('✅ Certificado PFX cargado completamente:', this.certificateInfo);
@@ -239,6 +242,48 @@ class CertificateHandler {
     }
 
     /**
+     * Obtiene el certificado y clave en formato PKCS#12 (P12) para pdfsign.js
+     * Necesario para compatibilidad con Adobe Acrobat
+     */
+    getPKCS12Bytes(password) {
+        console.log('🔐 Generando PKCS#12 para firma Adobe...');
+
+        if (!this.certificate || !this.privateKey) {
+            throw new Error('No hay certificado o clave privada cargados');
+        }
+
+        try {
+            // Crear un nuevo contenedor PKCS#12
+            const p12Asn1 = forge.pkcs12.toPkcs12Asn1(
+                this.privateKey,
+                [this.certificate],
+                password,
+                {
+                    algorithm: '3des', // Algoritmo de encriptación
+                    count: 2048, // Iteraciones
+                    saltSize: 8 // Tamaño del salt
+                }
+            );
+
+            // Convertir a DER (formato binario)
+            const p12Der = forge.asn1.toDer(p12Asn1).getBytes();
+
+            // Convertir a Uint8Array
+            const p12Bytes = new Uint8Array(p12Der.length);
+            for (let i = 0; i < p12Der.length; i++) {
+                p12Bytes[i] = p12Der.charCodeAt(i);
+            }
+
+            console.log('✅ PKCS#12 generado:', p12Bytes.length, 'bytes');
+
+            return p12Bytes;
+        } catch (error) {
+            console.error('❌ Error generando PKCS#12:', error);
+            throw new Error(`Error generando PKCS#12: ${error.message}`);
+        }
+    }
+
+    /**
      * Limpia los datos del certificado de la memoria
      */
     clear() {
@@ -246,6 +291,7 @@ class CertificateHandler {
         this.privateKey = null;
         this.certificateInfo = null;
         this.type = null;
+        this.lastPassword = null; // Limpiar contraseña
     }
 
     /**
