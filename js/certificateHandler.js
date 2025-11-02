@@ -9,53 +9,79 @@ class CertificateHandler {
         this.privateKey = null;
         this.certificateInfo = null;
         this.type = null;
+
+        // Verificar que forge esté disponible
+        if (typeof forge === 'undefined') {
+            console.error('❌ ERROR CRÍTICO: node-forge no está cargado. Verifica la conexión a internet y que el CDN esté disponible.');
+        } else {
+            console.log('✅ CertificateHandler iniciado correctamente. forge versión:', forge.version || 'desconocida');
+        }
     }
 
     /**
      * Carga e.firma SAT (archivos .cer + .key)
      */
     async loadEfirmaSAT(cerFile, keyFile, password) {
+        console.log('🔐 loadEfirmaSAT: Iniciando carga de e.firma SAT...');
+        console.log('📄 Archivo CER:', cerFile?.name, 'Tamaño:', cerFile?.size, 'bytes');
+        console.log('🔑 Archivo KEY:', keyFile?.name, 'Tamaño:', keyFile?.size, 'bytes');
+        console.log('🔒 Contraseña proporcionada:', password ? 'Sí (longitud: ' + password.length + ')' : 'No');
+
         try {
             // Leer archivos
+            console.log('📖 Leyendo archivos...');
             const cerBuffer = await this.readFileAsArrayBuffer(cerFile);
             const keyBuffer = await this.readFileAsArrayBuffer(keyFile);
+            console.log('✅ Archivos leídos. CER:', cerBuffer.byteLength, 'bytes, KEY:', keyBuffer.byteLength, 'bytes');
 
             // Convertir certificado DER a forge
+            console.log('🔄 Convirtiendo certificado DER a formato forge...');
             const cerBytes = forge.util.createBuffer(new Uint8Array(cerBuffer));
             const asn1Cert = forge.asn1.fromDer(cerBytes);
             this.certificate = forge.pki.certificateFromAsn1(asn1Cert);
+            console.log('✅ Certificado convertido exitosamente');
 
             // Descifrar llave privada
+            console.log('🔓 Descifrando llave privada...');
             const keyBytes = forge.util.createBuffer(new Uint8Array(keyBuffer));
 
             try {
                 // Intentar como PKCS#8 encriptado
+                console.log('🔄 Intentando descifrar como PKCS#8 encriptado...');
                 const asn1Key = forge.asn1.fromDer(keyBytes);
                 this.privateKey = forge.pki.decryptRsaPrivateKey(asn1Key, password);
 
                 if (!this.privateKey) {
                     // Intentar como PKCS#5
+                    console.log('🔄 PKCS#8 falló, intentando como PKCS#5...');
                     keyBytes.clear();
                     keyBytes.putBytes(new Uint8Array(keyBuffer));
                     const p8 = forge.pki.decryptPrivateKeyInfo(forge.asn1.fromDer(keyBytes), password);
                     this.privateKey = forge.pki.privateKeyFromAsn1(p8);
                 }
             } catch (e) {
+                console.error('❌ Error al descifrar llave privada:', e.message);
                 throw new Error('Contraseña incorrecta o formato de llave no soportado');
             }
 
             if (!this.privateKey) {
+                console.error('❌ No se pudo descifrar la llave privada');
                 throw new Error('No se pudo descifrar la llave privada. Verifique la contraseña.');
             }
 
+            console.log('✅ Llave privada descifrada exitosamente');
+
             this.type = 'EFIRMA_SAT';
+            console.log('📋 Extrayendo información del certificado...');
             this.certificateInfo = this.extractCertificateInfo();
+            console.log('✅ e.firma SAT cargada completamente:', this.certificateInfo);
 
             return {
                 success: true,
                 certificate: this.certificateInfo
             };
         } catch (error) {
+            console.error('❌ Error final en loadEfirmaSAT:', error);
             throw new Error(`Error cargando e.firma SAT: ${error.message}`);
         }
     }
@@ -64,45 +90,63 @@ class CertificateHandler {
      * Carga certificado PFX/PKCS#12
      */
     async loadPFX(pfxFile, password) {
+        console.log('🔐 loadPFX: Iniciando carga de certificado PFX...');
+        console.log('📦 Archivo PFX:', pfxFile?.name, 'Tamaño:', pfxFile?.size, 'bytes');
+        console.log('🔒 Contraseña proporcionada:', password ? 'Sí (longitud: ' + password.length + ')' : 'No');
+
         try {
+            console.log('📖 Leyendo archivo PFX...');
             const pfxBuffer = await this.readFileAsArrayBuffer(pfxFile);
+            console.log('✅ Archivo leído:', pfxBuffer.byteLength, 'bytes');
+
             const pfxBytes = forge.util.createBuffer(new Uint8Array(pfxBuffer));
 
             // Parsear PKCS#12
+            console.log('🔄 Parseando PKCS#12...');
             const asn1 = forge.asn1.fromDer(pfxBytes);
             const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, password);
+            console.log('✅ PKCS#12 parseado exitosamente');
 
             // Extraer certificado
+            console.log('📜 Extrayendo certificado...');
             const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
             const certBag = certBags[forge.pki.oids.certBag];
             if (!certBag || certBag.length === 0) {
+                console.error('❌ No se encontró certificado en el PFX');
                 throw new Error('No se encontró certificado en el archivo PFX');
             }
             this.certificate = certBag[0].cert;
+            console.log('✅ Certificado extraído');
 
             // Extraer llave privada
+            console.log('🔑 Extrayendo llave privada...');
             const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
             let keyBag = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag];
 
             if (!keyBag || keyBag.length === 0) {
-                // Intentar con keyBag sin cifrar
+                console.log('🔄 No se encontró llave cifrada, intentando con keyBag sin cifrar...');
                 const keyBags2 = p12.getBags({ bagType: forge.pki.oids.keyBag });
                 keyBag = keyBags2[forge.pki.oids.keyBag];
             }
 
             if (!keyBag || keyBag.length === 0) {
+                console.error('❌ No se encontró llave privada en el PFX');
                 throw new Error('No se encontró llave privada en el archivo PFX');
             }
             this.privateKey = keyBag[0].key;
+            console.log('✅ Llave privada extraída');
 
             this.type = 'PFX';
+            console.log('📋 Extrayendo información del certificado...');
             this.certificateInfo = this.extractCertificateInfo();
+            console.log('✅ Certificado PFX cargado completamente:', this.certificateInfo);
 
             return {
                 success: true,
                 certificate: this.certificateInfo
             };
         } catch (error) {
+            console.error('❌ Error en loadPFX:', error);
             if (error.message.includes('Invalid password')) {
                 throw new Error('Contraseña incorrecta');
             }

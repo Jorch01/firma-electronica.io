@@ -108,17 +108,24 @@ async function handleLoadCertificate() {
 
         if (certType === 'PFX') {
             const pfxFile = document.getElementById('pfxFile').files[0];
+            console.log('📦 Archivo PFX:', pfxFile ? pfxFile.name : 'No seleccionado');
             if (!pfxFile) {
                 throw new Error('Por favor seleccione el archivo PFX');
             }
+            console.log('⏳ Cargando PFX...');
             result = await window.certHandler.loadPFX(pfxFile, password);
+            console.log('✅ PFX cargado:', result);
         } else {
             const cerFile = document.getElementById('cerFile').files[0];
             const keyFile = document.getElementById('keyFile').files[0];
+            console.log('📄 Archivo CER:', cerFile ? cerFile.name : 'No seleccionado');
+            console.log('🔑 Archivo KEY:', keyFile ? keyFile.name : 'No seleccionado');
             if (!cerFile || !keyFile) {
                 throw new Error('Por favor seleccione ambos archivos (.cer y .key)');
             }
+            console.log('⏳ Cargando e.firma SAT...');
             result = await window.certHandler.loadEfirmaSAT(cerFile, keyFile, password);
+            console.log('✅ e.firma SAT cargada:', result);
         }
 
         appState.certificateLoaded = true;
@@ -145,7 +152,9 @@ async function handleLoadCertificate() {
         `;
 
         showMessage(resultDiv, message, 'success');
+        console.log('✅ Certificado cargado exitosamente');
     } catch (error) {
+        console.error('❌ Error cargando certificado:', error);
         appState.certificateLoaded = false;
         showMessage(resultDiv, `Error: ${error.message}`, 'error');
     } finally {
