@@ -74,11 +74,15 @@ class PDFValidator {
         const metadata = {};
 
         if (keywords) {
-            const parts = keywords.split(';').map(p => p.trim());
-            parts.forEach(part => {
-                const [key, value] = part.split(':').map(p => p.trim());
-                if (key && value) {
-                    metadata[key.toLowerCase()] = value;
+            // keywords puede ser un array o un string
+            const keywordArray = Array.isArray(keywords) ? keywords : keywords.split(';').map(p => p.trim());
+
+            keywordArray.forEach(part => {
+                if (typeof part === 'string' && part.includes(':')) {
+                    const [key, value] = part.split(':').map(p => p.trim());
+                    if (key && value) {
+                        metadata[key.toLowerCase()] = value;
+                    }
                 }
             });
         }
