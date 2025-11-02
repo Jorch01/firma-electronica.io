@@ -43,6 +43,15 @@ class PDFViewer {
             // Configurar eventos de selección de área
             this.setupAreaSelection();
 
+            // Configurar evento del checkbox de firma visible
+            const visibleCheckbox = document.getElementById('visibleSignature');
+            visibleCheckbox.addEventListener('change', () => {
+                this.updateCanvasMode();
+            });
+
+            // Inicializar modo del canvas
+            this.updateCanvasMode();
+
             // Renderizar primera página
             await this.renderPage(this.currentPage);
 
@@ -234,6 +243,28 @@ class PDFViewer {
     async zoomOut() {
         this.scale = Math.max(this.scale - 0.25, 0.5);
         await this.renderPage(this.currentPage);
+    }
+
+    /**
+     * Actualiza el modo visual del canvas según si se puede dibujar o no
+     */
+    updateCanvasMode() {
+        if (!this.canvas) return;
+
+        const visibleCheckbox = document.getElementById('visibleSignature');
+        if (visibleCheckbox && visibleCheckbox.checked) {
+            this.canvas.classList.add('can-draw');
+            // Mostrar tooltip si existe el signature box
+            if (this.signatureBox) {
+                console.log('💡 Haz clic y arrastra sobre el PDF para seleccionar dónde colocar la firma');
+            }
+        } else {
+            this.canvas.classList.remove('can-draw');
+            // Ocultar signature box si existe
+            if (this.signatureBox) {
+                this.signatureBox.style.display = 'none';
+            }
+        }
     }
 
     /**
