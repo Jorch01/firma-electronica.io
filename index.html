@@ -12,8 +12,8 @@
     <!-- Librerías CDN -->
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <!-- Cambiado a jsdelivr por problemas de MIME con cloudflare CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js"></script>
+    <!-- Forge parcheado para pdfsign.js - incluye método signDetached requerido -->
+    <script src="js/forge-patched.js"></script>
 </head>
 <body>
     <div class="container">
@@ -450,11 +450,11 @@
     <script src="js/pdfjs.parser.js"></script>
     <script src="js/pdfsign.min.js"></script>
 
-    <script src="js/certificateHandler.js?v=1762119898"></script>
-    <script src="js/pdfSigner.js?v=1762119898"></script>
-    <script src="js/pdfValidator.js?v=1762119898"></script>
-    <script src="js/pdfViewer.js?v=1762119898"></script>
-    <script src="js/app.js?v=1762119898"></script>
-    <!-- Build timestamp: 2025-11-02 21:44 UTC - ✓ FIRMA DIGITAL ADOBE ACROBAT -->
+    <script src="js/certificateHandler.js?v=1762120419"></script>
+    <script src="js/pdfSigner.js?v=1762120419"></script>
+    <script src="js/pdfValidator.js?v=1762120419"></script>
+    <script src="js/pdfViewer.js?v=1762120419"></script>
+    <script src="js/app.js?v=1762120419"></script>
+    <!-- Build timestamp: 2025-11-02 21:53 UTC - ✓ FIRMA DIGITAL ADOBE ACROBAT -->
 </body>
 </html>
