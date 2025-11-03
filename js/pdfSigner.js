@@ -215,6 +215,37 @@ class PDFSigner {
                 if (signedPdfBytes !== signedPdfResult) {
                     hexDump(signedPdfBytes, '🔄 Después de conversión (primeros 32 bytes)');
                 }
+
+                // 🔧 SOLUCIÓN: PDFSIGN tiene un bug que prepone basura antes del header PDF
+                // Buscar donde realmente empieza el PDF (buscar "%PDF")
+                console.log('🔍 Buscando inicio real del PDF (buscando %PDF header)...');
+                let pdfStartIndex = -1;
+                for (let i = 0; i < signedPdfBytes.length - 4; i++) {
+                    if (signedPdfBytes[i] === 0x25 &&      // %
+                        signedPdfBytes[i+1] === 0x50 &&    // P
+                        signedPdfBytes[i+2] === 0x44 &&    // D
+                        signedPdfBytes[i+3] === 0x46) {    // F
+                        pdfStartIndex = i;
+                        break;
+                    }
+                }
+
+                if (pdfStartIndex > 0) {
+                    console.log(`⚠️ PDFSIGN Bug detectado: PDF header encontrado en offset ${pdfStartIndex} (debería ser 0)`);
+                    console.log(`   Bytes basura al inicio: ${pdfStartIndex}`);
+                    hexDump(signedPdfBytes.slice(0, pdfStartIndex), `🗑️ Basura a eliminar (${pdfStartIndex} bytes)`);
+
+                    // Cortar la basura del inicio
+                    signedPdfBytes = signedPdfBytes.slice(pdfStartIndex);
+                    console.log(`✅ Basura eliminada. Nuevo tamaño: ${signedPdfBytes.length} bytes`);
+                    hexDump(signedPdfBytes, '✅ PDF corregido (primeros 32 bytes)');
+                } else if (pdfStartIndex === 0) {
+                    console.log('✅ PDF header en posición correcta (offset 0)');
+                } else {
+                    console.error('❌ No se encontró header %PDF en el resultado de PDFSIGN');
+                    throw new Error('PDFSIGN retornó datos inválidos sin header PDF');
+                }
+
             } catch (pdfsignError) {
                 console.error('❌ Error en PDFSIGN.signpdf():', pdfsignError);
                 throw new Error(`PDFSIGN falló: ${pdfsignError.message}`);
@@ -246,11 +277,14 @@ class PDFSigner {
 
             // Verificar que sea un PDF válido (debe empezar con %PDF)
             const header = String.fromCharCode(...finalPdfBytes.slice(0, 4));
-            console.log('📄 Header del PDF:', header);
+            console.log('📄 Verificación final - Header del PDF:', header);
             if (header !== '%PDF') {
                 console.error('❌ El archivo no parece ser un PDF válido. Header:', header);
-                throw new Error('El PDF firmado no tiene un formato válido');
+                console.error('   Esto no debería ocurrir después de la corrección del bug de PDFSIGN');
+                hexDump(finalPdfBytes, '❌ Primeros 64 bytes del PDF inválido', 64);
+                throw new Error('El PDF firmado no tiene un formato válido después de corrección');
             }
+            console.log('✅ Verificación exitosa: PDF tiene formato válido');
 
             // Calcular hash final del PDF firmado
             const finalHash = window.certHandler.createHash(finalPdfBytes);
