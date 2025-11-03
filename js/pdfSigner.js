@@ -132,6 +132,23 @@ class PDFSigner {
             const headerStr = String.fromCharCode(...headerCheck);
             console.log('   Header verificado:', headerStr, headerStr === '%PDF' ? '✅' : '❌');
 
+            // Helper function para hexdump
+            const hexDump = (bytes, label, count = 32) => {
+                const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+                const hex = Array.from(arr.slice(0, count))
+                    .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+                    .join(' ');
+                const ascii = Array.from(arr.slice(0, count))
+                    .map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.')
+                    .join('');
+                console.log(`${label}:`);
+                console.log(`  HEX: ${hex}`);
+                console.log(`  ASCII: ${ascii}`);
+            };
+
+            // Mostrar primeros bytes del input
+            hexDump(pdfArrayBuffer, '📥 INPUT PDF (primeros 32 bytes)');
+
             let signedPdfBytes;
             try {
                 console.log('   Llamando: PDFSIGN.signpdf(ArrayBuffer, p12Uint8Array, password)');
@@ -143,6 +160,9 @@ class PDFSigner {
                 console.log('✅ PDFSIGN.signpdf() completado sin excepciones');
                 console.log('   Tipo retornado:', signedPdfResult.constructor.name);
                 console.log('   Tamaño:', signedPdfResult.length || signedPdfResult.byteLength, 'bytes');
+
+                // Mostrar primeros bytes del resultado INMEDIATAMENTE
+                hexDump(signedPdfResult, '📤 OUTPUT de PDFSIGN (primeros 32 bytes)');
 
                 // Convertir resultado a Uint8Array si es necesario
                 if (signedPdfResult instanceof Uint8Array) {
@@ -157,6 +177,11 @@ class PDFSigner {
                     }
                 } else {
                     throw new Error('Tipo de resultado desconocido: ' + typeof signedPdfResult);
+                }
+
+                // Verificar después de conversión
+                if (signedPdfBytes !== signedPdfResult) {
+                    hexDump(signedPdfBytes, '🔄 Después de conversión (primeros 32 bytes)');
                 }
             } catch (pdfsignError) {
                 console.error('❌ Error en PDFSIGN.signpdf():', pdfsignError);
