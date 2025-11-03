@@ -107,27 +107,18 @@ class PKCS7Signer {
             console.log(`   Total de objetos: ${objNumbers.length}`);
         }
 
-        // Encontrar el objeto del catálogo - buscar más robusto
-        // Escapar caracteres especiales y buscar con newlines opcionales
-        const objStartPattern = new RegExp(`${rootObjNum}\\s+\\d+\\s+obj`, 'g');
-        const objStartMatch = pdfString.match(objStartPattern);
+        // Encontrar el objeto del catálogo - buscar específicamente el número exacto
+        const searchStr = `${rootObjNum} 0 obj`;
+        const objStart = pdfString.indexOf(searchStr);
 
-        if (!objStartMatch) {
-            console.error('❌ No se encontró inicio del objeto:', rootObjNum);
-            // Intentar buscar manualmente alrededor de donde debería estar
-            const searchStr = `${rootObjNum} 0 obj`;
-            const manualIndex = pdfString.indexOf(searchStr);
-            console.log(`   Búsqueda manual de "${searchStr}": ${manualIndex}`);
-
-            if (manualIndex !== -1) {
-                console.log('   Encontrado manualmente en posición:', manualIndex);
-                console.log('   Contexto:', pdfString.substring(manualIndex, manualIndex + 200));
-            }
-
+        if (objStart === -1) {
+            console.error('❌ No se encontró objeto catálogo:', rootObjNum);
+            console.error(`   Buscando: "${searchStr}"`);
             throw new Error('No se pudo encontrar objeto catálogo');
         }
 
-        const objStart = objStartMatch.index;
+        console.log(`✅ Objeto ${rootObjNum} encontrado en posición:`, objStart);
+
         const objEnd = pdfString.indexOf('endobj', objStart);
 
         if (objEnd === -1) {
@@ -162,15 +153,17 @@ class PKCS7Signer {
         const pagesObjNum = parseInt(pagesMatch[1]);
         console.log('✅ Pages encontrado: objeto', pagesObjNum);
 
-        // Encontrar objeto Pages para obtener primera página - buscar robusto
-        const pagesObjStartPattern = new RegExp(`${pagesObjNum}\\s+\\d+\\s+obj`);
-        const pagesObjStartMatch = pdfString.match(pagesObjStartPattern);
+        // Encontrar objeto Pages - buscar específicamente
+        const pagesSearchStr = `${pagesObjNum} 0 obj`;
+        const pagesObjStart = pdfString.indexOf(pagesSearchStr);
 
-        if (!pagesObjStartMatch) {
+        if (pagesObjStart === -1) {
+            console.error('❌ No se encontró objeto Pages:', pagesObjNum);
             throw new Error('No se encontró objeto Pages');
         }
 
-        const pagesObjStart = pagesObjStartMatch.index;
+        console.log(`✅ Objeto Pages ${pagesObjNum} encontrado en posición:`, pagesObjStart);
+
         const pagesObjEnd = pdfString.indexOf('endobj', pagesObjStart);
 
         if (pagesObjEnd === -1) {
@@ -255,12 +248,11 @@ endobj
         console.log('✅ Objetos insertados');
 
         // Modificar la primera página para agregar la anotación
-        // Buscar el objeto de la primera página
-        const firstPageObjPattern = new RegExp(`${firstPageObjNum}\\s+\\d+\\s+obj`);
-        const firstPageMatch = pdfString.match(firstPageObjPattern);
+        // Buscar el objeto de la primera página específicamente
+        const firstPageSearchStr = `${firstPageObjNum} 0 obj`;
+        const pageStart = pdfString.indexOf(firstPageSearchStr);
 
-        if (firstPageMatch) {
-            const pageStart = firstPageMatch.index;
+        if (pageStart !== -1) {
             const pageEnd = pdfString.indexOf('endobj', pageStart);
 
             if (pageEnd !== -1) {
@@ -281,11 +273,10 @@ endobj
 
         // Modificar el catálogo para agregar AcroForm
         // Recalcular posición del catálogo después de insertar
-        const catalogObjPattern2 = new RegExp(`${rootObjNum}\\s+\\d+\\s+obj`);
-        const catalogMatch2 = pdfString.match(catalogObjPattern2);
+        const catalogSearchStr2 = `${rootObjNum} 0 obj`;
+        const catStart = pdfString.indexOf(catalogSearchStr2);
 
-        if (catalogMatch2) {
-            const catStart = catalogMatch2.index;
+        if (catStart !== -1) {
             const catEnd = pdfString.indexOf('endobj', catStart);
 
             if (catEnd !== -1) {
