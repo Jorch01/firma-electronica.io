@@ -147,7 +147,39 @@ class PDFSigner {
             };
 
             // Mostrar primeros bytes del input
-            hexDump(pdfArrayBuffer, '📥 INPUT PDF (primeros 32 bytes)');
+            hexDump(pdfArrayBuffer, '📥 INPUT PDF después de pdf-lib (primeros 32 bytes)');
+
+            // DIAGNÓSTICO: Probar PDFSIGN con el PDF ORIGINAL (sin modificar por pdf-lib)
+            console.log('🔬 DIAGNÓSTICO: Probando PDFSIGN con PDF original (sin modificaciones de pdf-lib)...');
+            try {
+                const originalPdfBytes = this.pdfBytes; // PDF original cargado
+                hexDump(originalPdfBytes, '📥 PDF ORIGINAL (antes de pdf-lib)');
+
+                console.log('   Intentando firmar PDF original directamente...');
+                const testResult = PDFSIGN.signpdf(
+                    originalPdfBytes,
+                    p12Bytes,
+                    certPassword
+                );
+                console.log('✅ TEST: PDFSIGN con PDF original completado');
+                hexDump(testResult, '📤 TEST RESULT (primeros 32 bytes)');
+
+                const testHeader = String.fromCharCode(...(testResult instanceof Uint8Array ? testResult : new Uint8Array(testResult)).slice(0, 4));
+                console.log('   Header del test:', testHeader, testHeader === '%PDF' ? '✅ VÁLIDO' : '❌ CORRUPTO');
+
+                if (testHeader === '%PDF') {
+                    console.log('🎯 CONCLUSIÓN: PDFSIGN funciona con PDF original pero NO con salida de pdf-lib');
+                    console.log('   ⚠️ Problema: pdf-lib genera PDFs incompatibles con PDFSIGN');
+                } else {
+                    console.log('🎯 CONCLUSIÓN: PDFSIGN falla incluso con PDF original');
+                    console.log('   ⚠️ Problema: Puede ser certificado P12 o contraseña');
+                }
+            } catch (testError) {
+                console.error('❌ TEST FALLÓ:', testError.message);
+                console.log('   El error sugiere problema en PDFSIGN o sus dependencias');
+            }
+
+            console.log('\n📍 Ahora intentando con PDF modificado por pdf-lib...');
 
             let signedPdfBytes;
             try {
@@ -162,7 +194,7 @@ class PDFSigner {
                 console.log('   Tamaño:', signedPdfResult.length || signedPdfResult.byteLength, 'bytes');
 
                 // Mostrar primeros bytes del resultado INMEDIATAMENTE
-                hexDump(signedPdfResult, '📤 OUTPUT de PDFSIGN (primeros 32 bytes)');
+                hexDump(signedPdfResult, '📤 OUTPUT de PDFSIGN con pdf-lib (primeros 32 bytes)');
 
                 // Convertir resultado a Uint8Array si es necesario
                 if (signedPdfResult instanceof Uint8Array) {
