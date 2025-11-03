@@ -70,6 +70,10 @@ class PKCS7Signer {
         // Convertir a string para manipular
         let pdfString = this.uint8ArrayToString(pdfBytes);
 
+        // DEBUG: Mostrar primeros 2000 caracteres del PDF
+        console.log('🔍 DEBUG - Primeros 2000 caracteres del PDF:');
+        console.log(pdfString.substring(0, 2000));
+
         // Buscar el final del PDF
         const eofMatch = pdfString.match(/%%EOF\s*$/);
         if (!eofMatch) {
@@ -93,18 +97,31 @@ class PKCS7Signer {
         }
 
         const rootObjNum = parseInt(catalogMatch[1]);
+        console.log('✅ Root encontrado: objeto', rootObjNum);
 
         // Encontrar el objeto del catálogo
-        const catalogObjPattern = new RegExp(`${rootObjNum}\\s+\\d+\\s+obj\\s*<<([^>]*)>>`);
+        const catalogObjPattern = new RegExp(`${rootObjNum}\\s+\\d+\\s+obj\\s*<<([^>]*)>>`, 's');
         const catalogObjMatch = pdfString.match(catalogObjPattern);
 
         if (!catalogObjMatch) {
+            console.error('❌ No se pudo encontrar objeto catálogo:', rootObjNum);
             throw new Error('No se pudo parsear objeto catálogo');
         }
 
-        // Buscar primera página
-        const pagesMatch = pdfString.match(/\/Pages\s+(\d+)\s+\d+\s+R/);
+        console.log('✅ Catálogo encontrado');
+        console.log('   Contenido:', catalogObjMatch[1].substring(0, 200));
+
+        // Buscar primera página - probar múltiples patrones
+        let pagesMatch = pdfString.match(/\/Pages\s+(\d+)\s+\d+\s+R/);
+
         if (!pagesMatch) {
+            // Intentar buscar dentro del objeto catálogo
+            pagesMatch = catalogObjMatch[1].match(/\/Pages\s+(\d+)\s+\d+\s+R/);
+        }
+
+        if (!pagesMatch) {
+            console.error('❌ No se encontró /Pages en el PDF');
+            console.error('   Buscando en catálogo:', catalogObjMatch[1]);
             throw new Error('No se encontró objeto Pages');
         }
 
