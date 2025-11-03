@@ -477,6 +477,10 @@ endobj
         // Convertir issuer (Distinguished Name) a ASN.1
         const issuerAsn1 = this.forge.pki.distinguishedNameToAsn1(certificate.issuer);
 
+        // Obtener serialNumber directamente del certificado ASN.1
+        // certAsn1.value[0] es TBSCertificate, .value[1] es serialNumber
+        const serialNumberAsn1 = certAsn1.value[0].value[1];
+
         // Crear SignerInfo
         const signerInfo = this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
             // version = 1
@@ -485,8 +489,7 @@ endobj
             // sid = IssuerAndSerialNumber
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
                 issuerAsn1,
-                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.INTEGER, false,
-                    this.forge.util.hexToBytes(certificate.serialNumber))
+                serialNumberAsn1  // Usar el serialNumber directamente del certificado ASN.1
             ]),
             // digestAlgorithm = SHA-256
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
