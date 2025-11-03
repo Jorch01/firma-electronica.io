@@ -53,190 +53,59 @@ class PDFSigner {
         } = options;
 
         try {
-            console.log('🔐 Iniciando firma compatible con Adobe Acrobat...');
+            console.log('🔐 Iniciando firma electrónica...');
 
-            // TEMPORALMENTE: Usar PDF original sin modificaciones de pdf-lib
-            // para probar si PDFSIGN funciona correctamente
-            const USE_ORIGINAL_PDF = true; // Cambiar a false para usar pdf-lib
-
-            let pdfToSign;
-
-            if (USE_ORIGINAL_PDF) {
-                console.log('⚠️ MODO TEST: Usando PDF original sin modificaciones de pdf-lib');
-                console.log('   (Firma visible y metadatos desactivados temporalmente)');
-                // Convertir ArrayBuffer a Uint8Array
-                pdfToSign = this.pdfBytes instanceof Uint8Array ?
-                    this.pdfBytes :
-                    new Uint8Array(this.pdfBytes);
-            } else {
-                // Agregar firma visible si se requiere
-                if (visible) {
-                    console.log('📝 Agregando firma visible...');
-                    await this.addVisibleSignature({
-                        page: page - 1, // pdf-lib usa índice base 0
-                        x,
-                        y,
-                        reason,
-                        location
-                    });
-                }
-
-                // Agregar metadatos informativos
-                this.addMetadata({
+            // Agregar firma visible si se requiere
+            if (visible) {
+                console.log('📝 Agregando firma visible...');
+                await this.addVisibleSignature({
+                    page: page - 1, // pdf-lib usa índice base 0
+                    x,
+                    y,
                     reason,
-                    location,
-                    contactInfo,
-                    certificationLevel,
-                    signature: { hash: 'Pending Adobe signature' },
-                    includeTimestamp
+                    location
                 });
-
-                // Serializar PDF con firma visible y metadatos
-                console.log('📄 Serializando PDF con pdf-lib...');
-                pdfToSign = await this.pdfDoc.save();
             }
 
-            const pdfWithVisibleSignature = pdfToSign;
+            // Crear firma digital (hash criptográfico)
+            const digitalSignature = this.createDigitalSignature();
 
-            // Verificar el PDF antes de firmar
-            console.log('📄 PDF a firmar:', pdfWithVisibleSignature.length || pdfWithVisibleSignature.byteLength, 'bytes');
-            const headerBefore = String.fromCharCode(...pdfWithVisibleSignature.slice(0, 4));
-            if (headerBefore !== '%PDF') {
-                throw new Error('PDF inválido antes de firma');
-            }
+            // Agregar metadatos con información de la firma
+            this.addMetadata({
+                reason,
+                location,
+                contactInfo,
+                certificationLevel,
+                signature: digitalSignature,
+                includeTimestamp
+            });
 
-            // Obtener contraseña del certificado
-            const certPassword = window.certHandler.lastPassword || password;
-            if (!certPassword) {
-                throw new Error('Se requiere la contraseña del certificado');
-            }
+            // Serializar PDF con firma visible y metadatos
+            console.log('📄 Guardando PDF firmado...');
+            const signedPdfBytes = await this.pdfDoc.save();
 
-            // Convertir certificado a formato PKCS#12
-            console.log('🔑 Generando certificado PKCS#12...');
-            const p12Bytes = window.certHandler.getPKCS12Bytes(certPassword);
-
-            // Verificar PDFSIGN
-            if (typeof PDFSIGN === 'undefined' || !PDFSIGN.signpdf) {
-                throw new Error('Biblioteca PDFSIGN no disponible');
-            }
-
-            // Convertir a ArrayBuffer si es necesario
-            let pdfArrayBuffer;
-            if (pdfWithVisibleSignature instanceof ArrayBuffer) {
-                pdfArrayBuffer = pdfWithVisibleSignature;
-            } else if (pdfWithVisibleSignature instanceof Uint8Array) {
-                pdfArrayBuffer = pdfWithVisibleSignature.buffer.slice(
-                    pdfWithVisibleSignature.byteOffset,
-                    pdfWithVisibleSignature.byteOffset + pdfWithVisibleSignature.byteLength
-                );
-            } else {
-                throw new Error('Formato de PDF no soportado');
-            }
-
-            // Firmar con PDFSIGN
-            console.log('✍️ Firmando PDF con PDFSIGN...');
-            let signedPdfBytes;
-
-            try {
-                const signedPdfResult = PDFSIGN.signpdf(pdfArrayBuffer, p12Bytes, certPassword);
-                console.log('✅ PDFSIGN completó sin errores');
-
-                // Convertir resultado a Uint8Array
-                if (signedPdfResult instanceof Uint8Array) {
-                    signedPdfBytes = signedPdfResult;
-                } else if (signedPdfResult instanceof ArrayBuffer) {
-                    signedPdfBytes = new Uint8Array(signedPdfResult);
-                } else if (typeof signedPdfResult === 'string') {
-                    signedPdfBytes = new Uint8Array(signedPdfResult.length);
-                    for (let i = 0; i < signedPdfResult.length; i++) {
-                        signedPdfBytes[i] = signedPdfResult.charCodeAt(i) & 0xFF;
-                    }
-                } else {
-                    throw new Error('Tipo de resultado desconocido: ' + typeof signedPdfResult);
-                }
-
-                // 🔧 FIX: PDFSIGN tiene bug que prepone basura - buscar verdadero inicio del PDF
-                console.log('🔍 Verificando estructura del PDF firmado...');
-                let pdfStartIndex = -1;
-
-                // Buscar bytes %PDF (0x25 0x50 0x44 0x46)
-                for (let i = 0; i < Math.min(signedPdfBytes.length - 4, 100); i++) {
-                    if (signedPdfBytes[i] === 0x25 && signedPdfBytes[i+1] === 0x50 &&
-                        signedPdfBytes[i+2] === 0x44 && signedPdfBytes[i+3] === 0x46) {
-                        pdfStartIndex = i;
-                        break;
-                    }
-                }
-
-                if (pdfStartIndex > 0) {
-                    console.log(`⚠️ Detectado bug de PDFSIGN: ${pdfStartIndex} bytes de basura al inicio`);
-                    console.log(`   Eliminando basura...`);
-                    signedPdfBytes = signedPdfBytes.slice(pdfStartIndex);
-                    console.log(`✅ PDF corregido: ${signedPdfBytes.length} bytes`);
-                } else if (pdfStartIndex === 0) {
-                    console.log('✅ PDF tiene estructura correcta');
-                } else {
-                    throw new Error('No se encontró header %PDF válido');
-                }
-
-            } catch (error) {
-                console.error('❌ Error en firma:', error);
-                throw new Error(`PDFSIGN falló: ${error.message}`);
-            }
-
-            // signedPdfBytes ya es Uint8Array después del procesamiento
-            const finalPdfBytes = signedPdfBytes;
-
-            // Verificación final del header
-            const header = String.fromCharCode(...finalPdfBytes.slice(0, 4));
+            // Verificar PDF válido
+            const header = String.fromCharCode(...signedPdfBytes.slice(0, 4));
             if (header !== '%PDF') {
-                throw new Error(`PDF inválido después de firma. Header: ${header}`);
+                throw new Error(`PDF inválido. Header: ${header}`);
             }
 
-            // Verificación del final del PDF (debe terminar con %%EOF)
-            console.log('🔍 Verificando final del PDF...');
-            const last100 = finalPdfBytes.slice(-100);
-            const last100str = String.fromCharCode(...last100);
-
-            console.log('📄 Últimos 100 caracteres del PDF:');
-            console.log(last100str.split('\n').map(line => '  ' + line).join('\n'));
-
-            if (!last100str.includes('%%EOF')) {
-                console.error('⚠️ ADVERTENCIA: PDF no termina con %%EOF');
-                console.error('   El PDF puede estar corrupto internamente');
-            } else {
-                console.log('✅ PDF termina correctamente con %%EOF');
-            }
-
-            // Mostrar primeros 200 bytes para diagnóstico completo
-            console.log('📄 Primeros 200 bytes del PDF firmado:');
-            const first200str = String.fromCharCode(...finalPdfBytes.slice(0, 200));
-            console.log(first200str.split('\n').map(line => '  ' + line).join('\n'));
-
-            console.log(`✅ PDF firmado exitosamente: ${finalPdfBytes.length} bytes`);
-
-            // Calcular hash final
-            const finalHash = window.certHandler.createHash(finalPdfBytes);
+            console.log(`✅ PDF firmado exitosamente: ${signedPdfBytes.length} bytes`);
 
             return {
                 success: true,
-                pdfBytes: finalPdfBytes,
-                signature: {
-                    hash: finalHash,
-                    algorithm: 'SHA256withRSA (PKCS#7)',
-                    adobeCompatible: true
-                },
+                pdfBytes: signedPdfBytes,
+                signature: digitalSignature,
                 metadata: {
                     signer: window.certHandler.certificateInfo.subjectString,
                     signDate: new Date().toISOString(),
                     reason,
                     location,
-                    certificationLevel: this.getCertificationLevelName(certificationLevel),
-                    adobeCompatible: '✓ Compatible con Adobe Acrobat Reader'
+                    certificationLevel: this.getCertificationLevelName(certificationLevel)
                 }
             };
         } catch (error) {
-            console.error('❌ Error en firma digital:', error);
+            console.error('❌ Error en firma:', error);
             throw new Error(`Error firmando PDF: ${error.message}`);
         }
     }
@@ -256,51 +125,107 @@ class PDFSigner {
         const { width, height } = page.getSize();
 
         // Obtener información del certificado
-        const certInfo = window.certHandler.getSummary();
+        const certInfo = window.certHandler.certificateInfo;
+        const summary = window.certHandler.getSummary();
 
-        // Incrustar fuente
+        // Incrustar fuentes
+        const fontBold = await this.pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
         const font = await this.pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-        const fontSize = 10;
+        const fontSmall = await this.pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+
+        const titleSize = 11;
+        const fontSize = 9;
+        const smallSize = 7;
 
         // Configurar dimensiones del recuadro
-        const boxWidth = 250;
+        const boxWidth = 280;
+        const padding = 12;
+        const lineHeight = fontSize * 1.6;
+
+        // Calcular contenido
+        const dateStr = new Date().toLocaleString('es-MX', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZoneName: 'short'
+        });
+
+        // Crear hash del documento para mostrar
+        const docHash = window.certHandler.createHash(await this.pdfDoc.save());
+        const shortHash = docHash.substring(0, 16) + '...';
+
         const lines = [
-            'Firmado digitalmente por:',
-            certInfo.name,
-            `Fecha: ${new Date().toLocaleString('es-MX')}`,
-            `Razón: ${reason}`,
-            `Ubicación: ${location}`
+            { text: 'FIRMADO DIGITALMENTE', font: fontBold, size: titleSize, color: [0.1, 0.3, 0.6] },
+            { text: '', size: 4 }, // Espaciado
+            { text: `Firmante: ${summary.name}`, font: font, size: fontSize },
+            { text: `Fecha: ${dateStr}`, font: font, size: fontSize },
+            { text: `Razon: ${reason}`, font: font, size: fontSize },
+            { text: `Ubicacion: ${location}`, font: font, size: fontSize },
+            { text: '', size: 4 }, // Espaciado
+            { text: `Certificado: ${certInfo.type} - ${summary.type}`, font: fontSmall, size: smallSize, color: [0.3, 0.3, 0.3] },
+            { text: `Valido hasta: ${summary.validTo}`, font: fontSmall, size: smallSize, color: [0.3, 0.3, 0.3] },
+            { text: `Hash: ${shortHash}`, font: fontSmall, size: smallSize, color: [0.3, 0.3, 0.3] }
         ];
-        const lineHeight = fontSize * 1.5;
-        const boxHeight = lines.length * lineHeight + 20;
+
+        // Calcular altura total
+        const boxHeight = lines.reduce((sum, line) => sum + (line.size || lineHeight), 0) + padding * 2;
 
         // Ajustar posición si excede los límites
-        const adjustedX = Math.min(x, width - boxWidth - 10);
-        const adjustedY = Math.min(y, height - 10);
+        const adjustedX = Math.max(10, Math.min(x, width - boxWidth - 10));
+        const adjustedY = Math.max(boxHeight + 10, Math.min(y, height - 10));
 
-        // Dibujar recuadro
+        // Dibujar sombra
+        page.drawRectangle({
+            x: adjustedX + 2,
+            y: adjustedY - boxHeight + 2,
+            width: boxWidth,
+            height: boxHeight,
+            color: PDFLib.rgb(0.7, 0.7, 0.7),
+            opacity: 0.3
+        });
+
+        // Dibujar recuadro principal
         page.drawRectangle({
             x: adjustedX,
             y: adjustedY - boxHeight,
             width: boxWidth,
             height: boxHeight,
-            borderColor: PDFLib.rgb(0, 0, 0),
-            borderWidth: 1.5,
-            color: PDFLib.rgb(0.95, 0.95, 0.95)
+            borderColor: PDFLib.rgb(0.1, 0.3, 0.6),
+            borderWidth: 2,
+            color: PDFLib.rgb(0.98, 0.98, 1)
+        });
+
+        // Dibujar barra superior
+        page.drawRectangle({
+            x: adjustedX,
+            y: adjustedY - 30,
+            width: boxWidth,
+            height: 30,
+            color: PDFLib.rgb(0.1, 0.3, 0.6)
         });
 
         // Dibujar texto
-        let textY = adjustedY - lineHeight;
+        let textY = adjustedY - padding - 8;
         for (const line of lines) {
-            page.drawText(line, {
-                x: adjustedX + 10,
-                y: textY,
-                size: fontSize,
-                font: font,
-                color: PDFLib.rgb(0, 0, 0)
-            });
-            textY -= lineHeight;
+            if (line.text) {
+                const currentFont = line.font || font;
+                const currentSize = line.size || fontSize;
+                const currentColor = line.color || [0, 0, 0];
+
+                page.drawText(line.text, {
+                    x: adjustedX + padding,
+                    y: textY,
+                    size: currentSize,
+                    font: currentFont,
+                    color: PDFLib.rgb(...currentColor)
+                });
+            }
+            textY -= (line.size || lineHeight);
         }
+
+        console.log(`✅ Firma visible agregada en página ${pageIndex + 1} (${adjustedX}, ${adjustedY})`);
     }
 
     /**
