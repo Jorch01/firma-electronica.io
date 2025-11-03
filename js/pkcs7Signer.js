@@ -37,20 +37,42 @@ class PKCS7Signer {
 
             console.log('✅ Placeholder agregado');
 
-            // 2. Calcular ByteRange
+            // 2. Calcular ByteRange inicial
             const byteRange = this.calculateByteRange(pdfWithPlaceholder);
             console.log('✅ ByteRange calculado:', byteRange);
 
-            // 3. Obtener datos a firmar (excluir el placeholder de /Contents)
-            const dataToSign = this.getDataToSign(pdfWithPlaceholder, byteRange);
+            // 3. CRÍTICO: Actualizar ByteRange en el PDF ANTES de firmar
+            console.log('📝 Actualizando ByteRange en PDF...');
+            const byteRangeStr = `[${byteRange.map(n => String(n).padStart(10, '0')).join(' ')}]`;
+            let pdfStringTemp = this.uint8ArrayToString(pdfWithPlaceholder);
+            pdfStringTemp = pdfStringTemp.replace(
+                /\/ByteRange\s*\[[^\]]*\]/,
+                `/ByteRange ${byteRangeStr}`
+            );
+            const pdfWithByteRange = this.stringToUint8Array(pdfStringTemp);
+            console.log('✅ ByteRange actualizado en PDF');
+
+            // 4. RECALCULAR ByteRange para verificar que no cambió
+            const byteRangeVerify = this.calculateByteRange(pdfWithByteRange);
+            console.log('🔍 Verificación ByteRange:', byteRangeVerify);
+
+            if (JSON.stringify(byteRange) !== JSON.stringify(byteRangeVerify)) {
+                console.error('❌ ByteRange cambió después de actualizar!');
+                console.error('   Original:', byteRange);
+                console.error('   Después:', byteRangeVerify);
+                throw new Error('ByteRange inválido - cambió después de actualizar');
+            }
+
+            // 5. Obtener datos a firmar (del PDF con ByteRange actualizado)
+            const dataToSign = this.getDataToSign(pdfWithByteRange, byteRangeVerify);
             console.log('✅ Datos preparados para firma:', dataToSign.length, 'bytes');
 
-            // 4. Crear firma PKCS#7
+            // 6. Crear firma PKCS#7
             const signature = this.createPKCS7Signature(dataToSign, certificate, privateKey);
             console.log('✅ Firma PKCS#7 creada:', signature.length, 'bytes');
 
-            // 5. Insertar firma en el PDF
-            const signedPDF = this.insertSignature(pdfWithPlaceholder, signature, byteRange);
+            // 7. Insertar firma en el PDF (SIN modificar ByteRange)
+            const signedPDF = this.insertSignatureOnly(pdfWithByteRange, signature);
             console.log('✅ Firma insertada en PDF');
 
             return signedPDF;
@@ -409,7 +431,44 @@ endobj
     }
 
     /**
-     * Inserta la firma en el PDF
+     * Inserta SOLO la firma en el PDF (sin modificar ByteRange)
+     */
+    insertSignatureOnly(pdfBytes, signatureHex) {
+        console.log('📥 Insertando solo firma en PDF (sin modificar ByteRange)...');
+
+        let pdfString = this.uint8ArrayToString(pdfBytes);
+
+        // Validar que la firma quepa en el placeholder
+        const placeholderMatch = pdfString.match(/\/Contents\s*<([0-9a-fA-F]+)>/);
+        if (!placeholderMatch) {
+            throw new Error('No se encontró placeholder de /Contents');
+        }
+
+        const placeholderSize = placeholderMatch[1].length;
+        console.log(`   Tamaño placeholder: ${placeholderSize} caracteres`);
+        console.log(`   Tamaño firma: ${signatureHex.length} caracteres`);
+
+        if (signatureHex.length > placeholderSize) {
+            throw new Error(`Firma demasiado grande: ${signatureHex.length} > ${placeholderSize}`);
+        }
+
+        // Rellenar con ceros si la firma es más pequeña
+        const paddedSignature = signatureHex.padEnd(placeholderSize, '0');
+        console.log(`   Firma con padding: ${paddedSignature.length} caracteres`);
+
+        // Insertar firma con padding en /Contents
+        pdfString = pdfString.replace(
+            /\/Contents\s*<[0-9a-fA-F]+>/,
+            `/Contents <${paddedSignature}>`
+        );
+
+        console.log('✅ Firma insertada correctamente (ByteRange sin cambios)');
+
+        return this.stringToUint8Array(pdfString);
+    }
+
+    /**
+     * Inserta la firma en el PDF (DEPRECATED - usar insertSignatureOnly)
      */
     insertSignature(pdfBytes, signatureHex, byteRange) {
         console.log('📥 Insertando firma en PDF...');
