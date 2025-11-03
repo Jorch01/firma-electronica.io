@@ -383,7 +383,7 @@ endobj
     }
 
     /**
-     * Crea la firma PKCS#7 detached
+     * Crea la firma PKCS#7 detached (versión simplificada sin manipular ASN.1)
      */
     createPKCS7Signature(data, certificate, privateKey) {
         console.log('🔏 Generando firma PKCS#7 detached...');
@@ -391,13 +391,20 @@ endobj
         // Crear mensaje PKCS#7
         const p7 = this.forge.pkcs7.createSignedData();
 
-        // Para firma detached, establecer contenido pero será excluido en sign()
-        p7.content = this.forge.util.createBuffer(data);
+        // NO establecer p7.content - será detached desde el inicio
+        // En su lugar, calcularemos el hash manualmente y lo agregaremos a authenticatedAttributes
+
+        // Calcular hash SHA-256 del contenido
+        const md = this.forge.md.sha256.create();
+        md.update(this.forge.util.createBuffer(data));
+        const digest = md.digest();
+
+        console.log(`   - Hash SHA-256 calculado: ${digest.toHex().substring(0, 32)}...`);
 
         // Agregar certificado
         p7.addCertificate(certificate);
 
-        // Agregar firmante
+        // Agregar firmante con messageDigest pre-calculado
         p7.addSigner({
             key: privateKey,
             certificate: certificate,
@@ -408,8 +415,8 @@ endobj
                     value: this.forge.pki.oids.data
                 },
                 {
-                    type: this.forge.pki.oids.messageDigest
-                    // Valor se calcula automáticamente
+                    type: this.forge.pki.oids.messageDigest,
+                    value: digest.bytes()  // Hash pre-calculado
                 },
                 {
                     type: this.forge.pki.oids.signingTime,
@@ -418,8 +425,9 @@ endobj
             ]
         });
 
-        // Generar firma (detached = true, NO incluye el contenido en el output)
-        p7.sign({ detached: true });
+        // Generar firma (detached = true)
+        // Como no establecimos p7.content, debería crear una firma detached limpia
+        p7.sign({ detached: false });  // CAMBIO: false para que no intente incluir contenido
 
         // Convertir a ASN.1
         let asn1 = p7.toAsn1();
@@ -427,45 +435,34 @@ endobj
         console.log('🔍 Debug firma PKCS#7:');
         console.log(`   - Tamaño datos firmados: ${data.length} bytes`);
 
-        // CRÍTICO: Eliminar eContent para firma verdaderamente detached
-        // Estructura PKCS#7: ContentInfo { contentType, [0] EXPLICIT SignedData }
-        // SignedData: { version, digestAlgs, encapContentInfo, certs, crls, signerInfos }
-        // encapContentInfo: { eContentType, [0] EXPLICIT eContent } ← eContent debe eliminarse
+        // CRÍTICO: Limpiar eContent manualmente para asegurar firma detached
         try {
             console.log(`   - Estructura ASN.1 nivel superior: ${asn1.value.length} elementos`);
 
-            // asn1 es ContentInfo SEQUENCE con 2 elementos:
-            // [0] = OID (pkcs7-signedData)
-            // [1] = [0] EXPLICIT conteniendo SignedData
             if (asn1.value.length >= 2) {
-                const signedDataWrapper = asn1.value[1];  // [0] EXPLICIT
+                const signedDataWrapper = asn1.value[1];
                 console.log(`   - signedDataWrapper type: ${signedDataWrapper.type}, constructed: ${signedDataWrapper.constructed}`);
 
                 if (signedDataWrapper.value && signedDataWrapper.value.length > 0) {
-                    const signedData = signedDataWrapper.value[0];  // SignedData SEQUENCE
+                    const signedData = signedDataWrapper.value[0];
                     console.log(`   - signedData elements: ${signedData.value ? signedData.value.length : 'null'}`);
 
                     if (signedData.value && signedData.value.length >= 3) {
-                        // signedData.value[0] = version
-                        // signedData.value[1] = digestAlgorithms
-                        // signedData.value[2] = encapContentInfo
                         const encapContentInfo = signedData.value[2];
                         console.log(`   - encapContentInfo elements: ${encapContentInfo.value ? encapContentInfo.value.length : 'null'}`);
 
                         if (encapContentInfo.value && encapContentInfo.value.length > 1) {
-                            // encapContentInfo tiene: [0] eContentType OID, [1] [0] EXPLICIT eContent
-                            console.log(`   ⚠️ Removiendo eContent (elemento ${encapContentInfo.value.length - 1}) para firma detached`);
-                            // Mantener solo el eContentType OID, eliminar el eContent
+                            console.log(`   ⚠️ Removiendo eContent para firma detached`);
                             encapContentInfo.value = [encapContentInfo.value[0]];
-                            console.log(`   ✅ eContent eliminado - encapContentInfo ahora tiene ${encapContentInfo.value.length} elemento(s)`);
+                            console.log(`   ✅ eContent eliminado`);
                         } else {
-                            console.log(`   ℹ️ encapContentInfo ya no tiene eContent (detached OK)`);
+                            console.log(`   ℹ️ encapContentInfo ya es detached (1 elemento)`);
                         }
                     }
                 }
             }
         } catch (e) {
-            console.warn(`   ⚠️ No se pudo modificar eContent: ${e.message}`);
+            console.warn(`   ⚠️ Error manipulando eContent: ${e.message}`);
             console.warn(`   Stack: ${e.stack}`);
         }
 
