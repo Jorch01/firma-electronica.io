@@ -64,7 +64,10 @@ class PDFSigner {
             if (USE_ORIGINAL_PDF) {
                 console.log('⚠️ MODO TEST: Usando PDF original sin modificaciones de pdf-lib');
                 console.log('   (Firma visible y metadatos desactivados temporalmente)');
-                pdfToSign = this.pdfBytes; // PDF original sin modificar
+                // Convertir ArrayBuffer a Uint8Array
+                pdfToSign = this.pdfBytes instanceof Uint8Array ?
+                    this.pdfBytes :
+                    new Uint8Array(this.pdfBytes);
             } else {
                 // Agregar firma visible si se requiere
                 if (visible) {
