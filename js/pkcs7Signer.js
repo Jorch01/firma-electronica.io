@@ -223,8 +223,8 @@ class PKCS7Signer {
         const annotObjNum = nextObjNum + 1;
 
         // Crear objeto de firma con placeholder
-        // TEMPORAL: Aumentado a 1048576 (1MB) porque forge incluye contenido completo
-        const signatureSize = 1048576; // Firma con contenido ~535KB, necesitamos espacio extra
+        // Firma manual detached debería ser ~3-6KB, usamos 16KB (32768 hex chars) con margen
+        const signatureSize = 32768;
         const placeholder = '0'.repeat(signatureSize);
 
         const now = new Date();
@@ -383,70 +383,149 @@ endobj
     }
 
     /**
-     * Crea la firma PKCS#7 detached
+     * Crea la firma PKCS#7 detached construyendo la estructura manualmente
      */
     createPKCS7Signature(data, certificate, privateKey) {
-        console.log('🔏 Generando firma PKCS#7 detached...');
+        console.log('🔏 Generando firma PKCS#7 detached manualmente...');
 
-        // Crear mensaje PKCS#7
-        const p7 = this.forge.pkcs7.createSignedData();
-
-        // Establecer contenido - forge lo necesita para calcular messageDigest
         const dataString = this.uint8ArrayToString(data);
-        p7.content = this.forge.util.createBuffer(dataString);
 
-        // Agregar certificado
-        p7.addCertificate(certificate);
+        // 1. Calcular hash SHA-256 del contenido
+        const md = this.forge.md.sha256.create();
+        md.update(dataString);
+        const contentDigest = md.digest();
+        console.log(`   - Hash SHA-256: ${contentDigest.toHex().substring(0, 32)}...`);
 
-        // Agregar firmante
-        p7.addSigner({
-            key: privateKey,
-            certificate: certificate,
-            digestAlgorithm: this.forge.pki.oids.sha256,
-            authenticatedAttributes: [
-                {
-                    type: this.forge.pki.oids.contentType,
-                    value: this.forge.pki.oids.data
-                },
-                {
-                    type: this.forge.pki.oids.messageDigest
-                    // forge calcula automáticamente el hash
-                },
-                {
-                    type: this.forge.pki.oids.signingTime,
-                    value: new Date()
-                }
-            ]
-        });
+        // 2. Crear authenticated attributes
+        const authenticatedAttributes = [
+            // contentType
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                    this.forge.asn1.oidToDer(this.forge.pki.oids.contentType).getBytes()),
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [
+                    this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                        this.forge.asn1.oidToDer(this.forge.pki.oids.data).getBytes())
+                ])
+            ]),
+            // signingTime
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                    this.forge.asn1.oidToDer(this.forge.pki.oids.signingTime).getBytes()),
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [
+                    this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.UTCTIME, false,
+                        this.forge.asn1.dateToUtcTime(new Date()))
+                ])
+            ]),
+            // messageDigest
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                    this.forge.asn1.oidToDer(this.forge.pki.oids.messageDigest).getBytes()),
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [
+                    this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OCTETSTRING, false,
+                        contentDigest.bytes())
+                ])
+            ])
+        ];
 
-        // Generar firma (detached=true para no incluir contenido en output)
-        p7.sign({ detached: true });
+        // 3. Calcular hash de los authenticated attributes y firmar
+        const attrsAsn1 = this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, authenticatedAttributes);
+        const attrsBytes = this.forge.asn1.toDer(attrsAsn1).getBytes();
 
-        // Convertir a ASN.1
-        let asn1 = p7.toAsn1();
+        const attrsMd = this.forge.md.sha256.create();
+        attrsMd.update(attrsBytes);
+        const attrsDigest = attrsMd.digest();
 
-        console.log('🔍 Debug firma PKCS#7:');
-        console.log(`   - Tamaño datos firmados: ${data.length} bytes`);
+        // Firmar el hash de los authenticated attributes con RSA
+        const signature = privateKey.sign(attrsDigest);
+        console.log(`   - Firma RSA generada: ${signature.length} bytes`);
 
-        // NO manipular eContent - dejar que forge maneje detached correctamente
-        console.log(`   ℹ️ Usando firma PKCS#7 generada por forge sin modificaciones`);
+        // 4. Crear estructura PKCS#7 SignedData completa
+        const signedData = this.createSignedDataASN1(
+            certificate,
+            authenticatedAttributes,
+            signature
+        );
 
-        // Convertir a DER
-        const derBuffer = this.forge.asn1.toDer(asn1).getBytes();
-        console.log(`   - Tamaño DER final: ${derBuffer.length} bytes`);
+        // 5. Envolver en ContentInfo
+        const contentInfo = this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+            // contentType = id-signedData
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                this.forge.asn1.oidToDer(this.forge.pki.oids.signedData).getBytes()),
+            // content [0] EXPLICIT
+            this.forge.asn1.create(this.forge.asn1.Class.CONTEXT_SPECIFIC, 0, true, [signedData])
+        ]);
 
-        // Convertir a hex string
+        // Convertir a DER y luego a hex
+        const derBuffer = this.forge.asn1.toDer(contentInfo).getBytes();
         const hexString = this.forge.util.bytesToHex(derBuffer);
 
+        console.log(`   - Tamaño DER final: ${derBuffer.length} bytes`);
         console.log(`   - Tamaño hex: ${hexString.length} caracteres`);
-        console.log(`✅ Firma PKCS#7 generada (esperado: 4000-8000 chars)`);
-
-        // Validar tamaño razonable
-        if (hexString.length > 16384) {
-            console.warn(`⚠️ ADVERTENCIA: Firma muy grande (${hexString.length} chars). Posible problema.`);
-        }
+        console.log(`✅ Firma PKCS#7 detached creada manualmente`);
 
         return hexString;
+    }
+
+    /**
+     * Crea la estructura ASN.1 SignedData
+     */
+    createSignedDataASN1(certificate, authenticatedAttributes, signature) {
+        // Convertir certificado a ASN.1
+        const certAsn1 = this.forge.pki.certificateToAsn1(certificate);
+
+        // Crear SignerInfo
+        const signerInfo = this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+            // version = 1
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.INTEGER, false,
+                this.forge.asn1.integerToDer(1).getBytes()),
+            // sid = IssuerAndSerialNumber
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+                certificate.issuer.toAsn1(),
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.INTEGER, false,
+                    this.forge.util.hexToBytes(certificate.serialNumber))
+            ]),
+            // digestAlgorithm = SHA-256
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                    this.forge.asn1.oidToDer(this.forge.pki.oids.sha256).getBytes()),
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.NULL, false, '')
+            ]),
+            // signedAttrs [0] IMPLICIT
+            this.forge.asn1.create(this.forge.asn1.Class.CONTEXT_SPECIFIC, 0, true, authenticatedAttributes),
+            // signatureAlgorithm = RSA
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                    this.forge.asn1.oidToDer(this.forge.pki.oids.rsaEncryption).getBytes()),
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.NULL, false, '')
+            ]),
+            // signature
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OCTETSTRING, false, signature)
+        ]);
+
+        // Crear SignedData completo
+        return this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+            // version = 1
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.INTEGER, false,
+                this.forge.asn1.integerToDer(1).getBytes()),
+            // digestAlgorithms
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+                    this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                        this.forge.asn1.oidToDer(this.forge.pki.oids.sha256).getBytes()),
+                    this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.NULL, false, '')
+                ])
+            ]),
+            // encapContentInfo - SOLO eContentType, SIN eContent (detached)
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                    this.forge.asn1.oidToDer(this.forge.pki.oids.data).getBytes())
+                // NO incluir eContent - esto lo hace detached
+            ]),
+            // certificates [0] IMPLICIT
+            this.forge.asn1.create(this.forge.asn1.Class.CONTEXT_SPECIFIC, 0, true, [certAsn1]),
+            // signerInfos
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [signerInfo])
+        ]);
     }
 
     /**
