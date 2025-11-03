@@ -166,10 +166,6 @@ class PDFSigner {
             timeZoneName: 'short'
         });
 
-        // Crear hash del documento para mostrar
-        const docHash = window.certHandler.createHash(await this.pdfDoc.save());
-        const shortHash = docHash.substring(0, 16) + '...';
-
         const lines = [
             { text: 'FIRMADO DIGITALMENTE', font: fontBold, size: titleSize, color: [0.1, 0.3, 0.6] },
             { text: '', size: 4 }, // Espaciado
@@ -180,7 +176,7 @@ class PDFSigner {
             { text: '', size: 4 }, // Espaciado
             { text: `Certificado: ${certInfo.type} - ${summary.type}`, font: fontSmall, size: smallSize, color: [0.3, 0.3, 0.3] },
             { text: `Valido hasta: ${summary.validTo}`, font: fontSmall, size: smallSize, color: [0.3, 0.3, 0.3] },
-            { text: `Hash: ${shortHash}`, font: fontSmall, size: smallSize, color: [0.3, 0.3, 0.3] }
+            { text: `Firma digital: PKCS#7/SHA-256`, font: fontSmall, size: smallSize, color: [0.3, 0.3, 0.3] }
         ];
 
         // Calcular altura total
