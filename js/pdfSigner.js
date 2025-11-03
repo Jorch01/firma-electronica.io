@@ -242,8 +242,13 @@ class PDFSigner {
      * Crea la firma digital
      */
     createDigitalSignature() {
+        // Convertir a Uint8Array si es necesario
+        const pdfData = this.pdfBytes instanceof Uint8Array ?
+            this.pdfBytes :
+            new Uint8Array(this.pdfBytes);
+
         // Crear hash del PDF
-        const hash = window.certHandler.createHash(this.pdfBytes);
+        const hash = window.certHandler.createHash(pdfData);
 
         // Firmar el hash
         const signature = window.certHandler.signData(hash);
