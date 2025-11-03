@@ -396,7 +396,9 @@ endobj
 
         // Calcular hash SHA-256 del contenido
         const md = this.forge.md.sha256.create();
-        md.update(this.forge.util.createBuffer(data));
+        // Convertir Uint8Array a string binario para forge
+        const dataString = this.uint8ArrayToString(data);
+        md.update(dataString);
         const digest = md.digest();
 
         console.log(`   - Hash SHA-256 calculado: ${digest.toHex().substring(0, 32)}...`);
