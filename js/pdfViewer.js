@@ -106,20 +106,55 @@ class PDFViewer {
     setupAreaSelection() {
         const container = this.canvas.parentElement;
 
+        // Función para obtener coordenadas correctas del canvas
+        const getCanvasCoords = (clientX, clientY) => {
+            const canvasRect = this.canvas.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            // Coordenadas relativas al canvas
+            const canvasX = clientX - canvasRect.left;
+            const canvasY = clientY - canvasRect.top;
+
+            // Coordenadas relativas al contenedor (para posicionar el signatureBox)
+            const containerX = clientX - containerRect.left + container.scrollLeft;
+            const containerY = clientY - containerRect.top + container.scrollTop;
+
+            // Offset del canvas dentro del contenedor
+            const canvasOffsetX = canvasRect.left - containerRect.left + container.scrollLeft;
+            const canvasOffsetY = canvasRect.top - containerRect.top + container.scrollTop;
+
+            return {
+                canvasX,
+                canvasY,
+                containerX,
+                containerY,
+                canvasOffsetX,
+                canvasOffsetY,
+                // Coordenadas absolutas para signatureBox (canvas offset + coordenada en canvas)
+                boxX: canvasOffsetX + canvasX,
+                boxY: canvasOffsetY + canvasY
+            };
+        };
+
         // Función para iniciar selección
         const startSelection = (clientX, clientY) => {
             if (!document.getElementById('visibleSignature').checked) return false;
 
             this.isDrawing = true;
-            const rect = this.canvas.getBoundingClientRect();
-            this.startX = clientX - rect.left;
-            this.startY = clientY - rect.top;
+            const coords = getCanvasCoords(clientX, clientY);
 
-            this.signatureBox.style.left = this.startX + 'px';
-            this.signatureBox.style.top = this.startY + 'px';
+            this.startX = coords.canvasX;
+            this.startY = coords.canvasY;
+            this.boxStartX = coords.boxX;
+            this.boxStartY = coords.boxY;
+
+            this.signatureBox.style.left = coords.boxX + 'px';
+            this.signatureBox.style.top = coords.boxY + 'px';
             this.signatureBox.style.width = '0px';
             this.signatureBox.style.height = '0px';
             this.signatureBox.style.display = 'block';
+
+            console.log('🖱️ Inicio:', { canvasX: coords.canvasX, canvasY: coords.canvasY, boxX: coords.boxX, boxY: coords.boxY });
             return true;
         };
 
@@ -127,12 +162,10 @@ class PDFViewer {
         const moveSelection = (clientX, clientY) => {
             if (!this.isDrawing) return;
 
-            const rect = this.canvas.getBoundingClientRect();
-            const currentX = clientX - rect.left;
-            const currentY = clientY - rect.top;
+            const coords = getCanvasCoords(clientX, clientY);
 
-            const width = currentX - this.startX;
-            const height = currentY - this.startY;
+            const width = coords.boxX - this.boxStartX;
+            const height = coords.boxY - this.boxStartY;
 
             if (width > 0 && height > 0) {
                 this.signatureBox.style.width = width + 'px';
@@ -145,13 +178,20 @@ class PDFViewer {
             if (!this.isDrawing) return;
             this.isDrawing = false;
 
-            const rect = this.canvas.getBoundingClientRect();
-            const endX = clientX - rect.left;
-            const endY = clientY - rect.top;
+            const coords = getCanvasCoords(clientX, clientY);
 
             // Convertir coordenadas de canvas a coordenadas PDF
-            const pdfX = Math.round((this.startX / this.scale));
-            const pdfY = Math.round((this.canvas.height - endY) / this.scale);
+            // pdf-lib usa origen bottom-left, canvas usa origin top-left
+            const pdfX = Math.round(this.startX / this.scale);
+            const pdfY = Math.round((this.canvas.height - coords.canvasY) / this.scale);
+            const width = Math.round((coords.canvasX - this.startX) / this.scale);
+            const height = Math.round((coords.canvasY - this.startY) / this.scale);
+
+            console.log('✅ Final:', {
+                canvasStart: { x: this.startX, y: this.startY },
+                canvasEnd: { x: coords.canvasX, y: coords.canvasY },
+                pdfCoords: { x: pdfX, y: pdfY, width, height }
+            });
 
             // Actualizar campos
             document.getElementById('signatureX').value = pdfX;
