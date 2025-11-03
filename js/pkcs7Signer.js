@@ -396,9 +396,10 @@ endobj
         const contentDigest = md.digest();
         console.log(`   - Hash SHA-256: ${contentDigest.toHex().substring(0, 32)}...`);
 
-        // 2. Crear authenticated attributes
+        // 2. Crear authenticated attributes en orden DER correcto por OID
+        // Orden: contentType (1.9.3), messageDigest (1.9.4), signingTime (1.9.5)
         const authenticatedAttributes = [
-            // contentType
+            // contentType (OID 1.2.840.113549.1.9.3)
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
                 this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
                     this.forge.asn1.oidToDer(this.forge.pki.oids.contentType).getBytes()),
@@ -407,22 +408,22 @@ endobj
                         this.forge.asn1.oidToDer(this.forge.pki.oids.data).getBytes())
                 ])
             ]),
-            // signingTime
-            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
-                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
-                    this.forge.asn1.oidToDer(this.forge.pki.oids.signingTime).getBytes()),
-                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [
-                    this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.UTCTIME, false,
-                        this.forge.asn1.dateToUtcTime(new Date()))
-                ])
-            ]),
-            // messageDigest
+            // messageDigest (OID 1.2.840.113549.1.9.4) - DEBE ir antes que signingTime
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
                 this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
                     this.forge.asn1.oidToDer(this.forge.pki.oids.messageDigest).getBytes()),
                 this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [
                     this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OCTETSTRING, false,
                         contentDigest.bytes())
+                ])
+            ]),
+            // signingTime (OID 1.2.840.113549.1.9.5)
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                    this.forge.asn1.oidToDer(this.forge.pki.oids.signingTime).getBytes()),
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [
+                    this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.UTCTIME, false,
+                        this.forge.asn1.dateToUtcTime(new Date()))
                 ])
             ])
         ];
