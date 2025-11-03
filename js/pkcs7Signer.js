@@ -473,6 +473,9 @@ endobj
         // Convertir certificado a ASN.1
         const certAsn1 = this.forge.pki.certificateToAsn1(certificate);
 
+        // Convertir issuer (Distinguished Name) a ASN.1
+        const issuerAsn1 = this.forge.pki.distinguishedNameToAsn1(certificate.issuer);
+
         // Crear SignerInfo
         const signerInfo = this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
             // version = 1
@@ -480,7 +483,7 @@ endobj
                 this.forge.asn1.integerToDer(1).getBytes()),
             // sid = IssuerAndSerialNumber
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
-                certificate.issuer.toAsn1(),
+                issuerAsn1,
                 this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.INTEGER, false,
                     this.forge.util.hexToBytes(certificate.serialNumber))
             ]),
