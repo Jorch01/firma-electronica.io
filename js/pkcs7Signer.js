@@ -99,49 +99,86 @@ class PKCS7Signer {
         const rootObjNum = parseInt(catalogMatch[1]);
         console.log('✅ Root encontrado: objeto', rootObjNum);
 
-        // Encontrar el objeto del catálogo
-        const catalogObjPattern = new RegExp(`${rootObjNum}\\s+\\d+\\s+obj\\s*<<([^>]*)>>`, 's');
-        const catalogObjMatch = pdfString.match(catalogObjPattern);
+        // Encontrar el objeto del catálogo - buscar más robusto
+        const objStartPattern = new RegExp(`${rootObjNum}\\s+\\d+\\s+obj`);
+        const objStartMatch = pdfString.match(objStartPattern);
 
-        if (!catalogObjMatch) {
-            console.error('❌ No se pudo encontrar objeto catálogo:', rootObjNum);
+        if (!objStartMatch) {
+            console.error('❌ No se encontró inicio del objeto:', rootObjNum);
+            throw new Error('No se pudo encontrar objeto catálogo');
+        }
+
+        const objStart = objStartMatch.index;
+        const objEnd = pdfString.indexOf('endobj', objStart);
+
+        if (objEnd === -1) {
+            console.error('❌ No se encontró fin del objeto:', rootObjNum);
             throw new Error('No se pudo parsear objeto catálogo');
         }
 
+        const catalogObj = pdfString.substring(objStart, objEnd + 6);
         console.log('✅ Catálogo encontrado');
-        console.log('   Contenido:', catalogObjMatch[1].substring(0, 200));
+        console.log('📄 Objeto completo:');
+        console.log(catalogObj);
 
-        // Buscar primera página - probar múltiples patrones
-        let pagesMatch = pdfString.match(/\/Pages\s+(\d+)\s+\d+\s+R/);
-
-        if (!pagesMatch) {
-            // Intentar buscar dentro del objeto catálogo
-            pagesMatch = catalogObjMatch[1].match(/\/Pages\s+(\d+)\s+\d+\s+R/);
+        // Extraer el diccionario del catálogo
+        const dictMatch = catalogObj.match(/<<([\s\S]*)>>/);
+        if (!dictMatch) {
+            console.error('❌ No se pudo extraer diccionario del catálogo');
+            throw new Error('No se pudo parsear diccionario del catálogo');
         }
 
+        const catalogDict = dictMatch[1];
+        console.log('✅ Diccionario extraído:', catalogDict.substring(0, 300));
+
+        // Buscar /Pages en el diccionario del catálogo
+        const pagesMatch = catalogDict.match(/\/Pages\s+(\d+)\s+\d+\s+R/);
+
         if (!pagesMatch) {
-            console.error('❌ No se encontró /Pages en el PDF');
-            console.error('   Buscando en catálogo:', catalogObjMatch[1]);
+            console.error('❌ No se encontró /Pages en el catálogo');
+            console.error('   Diccionario:', catalogDict);
             throw new Error('No se encontró objeto Pages');
         }
 
         const pagesObjNum = parseInt(pagesMatch[1]);
+        console.log('✅ Pages encontrado: objeto', pagesObjNum);
 
-        // Encontrar objeto Pages para obtener primera página
-        const pagesObjPattern = new RegExp(`${pagesObjNum}\\s+\\d+\\s+obj\\s*<<([^>]*)>>`);
-        const pagesObjMatch = pdfString.match(pagesObjPattern);
+        // Encontrar objeto Pages para obtener primera página - buscar robusto
+        const pagesObjStartPattern = new RegExp(`${pagesObjNum}\\s+\\d+\\s+obj`);
+        const pagesObjStartMatch = pdfString.match(pagesObjStartPattern);
 
-        if (!pagesObjMatch) {
+        if (!pagesObjStartMatch) {
+            throw new Error('No se encontró objeto Pages');
+        }
+
+        const pagesObjStart = pagesObjStartMatch.index;
+        const pagesObjEnd = pdfString.indexOf('endobj', pagesObjStart);
+
+        if (pagesObjEnd === -1) {
             throw new Error('No se pudo parsear objeto Pages');
         }
 
+        const pagesObj = pdfString.substring(pagesObjStart, pagesObjEnd + 6);
+        console.log('📄 Objeto Pages:', pagesObj.substring(0, 500));
+
+        // Extraer diccionario del objeto Pages
+        const pagesDictMatch = pagesObj.match(/<<([\s\S]*)>>/);
+        if (!pagesDictMatch) {
+            throw new Error('No se pudo extraer diccionario de Pages');
+        }
+
+        const pagesDict = pagesDictMatch[1];
+
         // Extraer referencia a Kids (primera página)
-        const kidsMatch = pagesObjMatch[1].match(/\/Kids\s*\[\s*(\d+)\s+\d+\s+R/);
+        const kidsMatch = pagesDict.match(/\/Kids\s*\[\s*(\d+)\s+\d+\s+R/);
         if (!kidsMatch) {
+            console.error('❌ No se encontró /Kids en Pages');
+            console.error('   Diccionario Pages:', pagesDict);
             throw new Error('No se encontró array Kids');
         }
 
         const firstPageObjNum = parseInt(kidsMatch[1]);
+        console.log('✅ Primera página encontrada: objeto', firstPageObjNum);
 
         // Obtener el siguiente número de objeto disponible
         const allObjects = pdfString.match(/(\d+)\s+\d+\s+obj/g) || [];
@@ -196,15 +233,55 @@ endobj
                     annotObject +
                     pdfString.slice(insertPosition);
 
+        console.log('✅ Objetos insertados');
+
         // Modificar la primera página para agregar la anotación
-        const pageObjPattern = new RegExp(`(${firstPageObjNum}\\s+\\d+\\s+obj\\s*<<[^>]*)(>>)`);
-        pdfString = pdfString.replace(pageObjPattern,
-            `$1/Annots [${annotObjNum} 0 R]$2`);
+        // Buscar el objeto de la primera página
+        const firstPageObjPattern = new RegExp(`${firstPageObjNum}\\s+\\d+\\s+obj`);
+        const firstPageMatch = pdfString.match(firstPageObjPattern);
+
+        if (firstPageMatch) {
+            const pageStart = firstPageMatch.index;
+            const pageEnd = pdfString.indexOf('endobj', pageStart);
+
+            if (pageEnd !== -1) {
+                const pageObj = pdfString.substring(pageStart, pageEnd);
+
+                // Buscar el último >> antes de endobj para insertar /Annots
+                const lastDictEnd = pageObj.lastIndexOf('>>');
+
+                if (lastDictEnd !== -1) {
+                    const beforeDict = pdfString.substring(0, pageStart + lastDictEnd);
+                    const afterDict = pdfString.substring(pageStart + lastDictEnd);
+
+                    pdfString = beforeDict + `/Annots [${annotObjNum} 0 R]` + afterDict;
+                    console.log('✅ Anotación agregada a página');
+                }
+            }
+        }
 
         // Modificar el catálogo para agregar AcroForm
-        const catalogPattern = new RegExp(`(${rootObjNum}\\s+\\d+\\s+obj\\s*<<[^>]*)(>>)`);
-        pdfString = pdfString.replace(catalogPattern,
-            `$1/AcroForm<</Fields[${annotObjNum} 0 R]/SigFlags 3>>$2`);
+        // Recalcular posición del catálogo después de insertar
+        const catalogObjPattern2 = new RegExp(`${rootObjNum}\\s+\\d+\\s+obj`);
+        const catalogMatch2 = pdfString.match(catalogObjPattern2);
+
+        if (catalogMatch2) {
+            const catStart = catalogMatch2.index;
+            const catEnd = pdfString.indexOf('endobj', catStart);
+
+            if (catEnd !== -1) {
+                const catObj = pdfString.substring(catStart, catEnd);
+                const lastDictEnd = catObj.lastIndexOf('>>');
+
+                if (lastDictEnd !== -1) {
+                    const beforeDict = pdfString.substring(0, catStart + lastDictEnd);
+                    const afterDict = pdfString.substring(catStart + lastDictEnd);
+
+                    pdfString = beforeDict + `/AcroForm<</Fields[${annotObjNum} 0 R]/SigFlags 3>>` + afterDict;
+                    console.log('✅ AcroForm agregado a catálogo');
+                }
+            }
+        }
 
         console.log('✅ Objetos de firma agregados');
         console.log(`   - Objeto firma: ${sigObjNum}`);
