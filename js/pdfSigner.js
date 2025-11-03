@@ -53,7 +53,7 @@ class PDFSigner {
         } = options;
 
         try {
-            console.log('🔐 Iniciando firma electrónica...');
+            console.log('🔐 Iniciando firma electrónica con PKCS#7...');
 
             // Agregar firma visible si se requiere
             if (visible) {
@@ -81,8 +81,22 @@ class PDFSigner {
             });
 
             // Serializar PDF con firma visible y metadatos
-            console.log('📄 Guardando PDF firmado...');
-            const signedPdfBytes = await this.pdfDoc.save();
+            console.log('📄 Guardando PDF con firma visible...');
+            const pdfWithVisibleSignature = await this.pdfDoc.save();
+
+            // Agregar firma digital PKCS#7
+            console.log('🔏 Agregando firma digital PKCS#7...');
+            const signedPdfBytes = await window.pkcs7Signer.signPDF(
+                pdfWithVisibleSignature,
+                window.certHandler.certificate,
+                window.certHandler.privateKey,
+                {
+                    reason,
+                    location,
+                    contactInfo,
+                    name: window.certHandler.getSummary().name
+                }
+            );
 
             // Verificar PDF válido
             const header = String.fromCharCode(...signedPdfBytes.slice(0, 4));
