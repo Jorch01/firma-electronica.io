@@ -99,12 +99,31 @@ class PKCS7Signer {
         const rootObjNum = parseInt(catalogMatch[1]);
         console.log('✅ Root encontrado: objeto', rootObjNum);
 
+        // DEBUG: Listar todos los objetos en el PDF
+        const allObjMatches = pdfString.match(/(\d+)\s+\d+\s+obj/g);
+        if (allObjMatches) {
+            const objNumbers = allObjMatches.map(m => m.match(/(\d+)/)[1]);
+            console.log('📋 Objetos encontrados en PDF:', objNumbers.slice(0, 50).join(', '));
+            console.log(`   Total de objetos: ${objNumbers.length}`);
+        }
+
         // Encontrar el objeto del catálogo - buscar más robusto
-        const objStartPattern = new RegExp(`${rootObjNum}\\s+\\d+\\s+obj`);
+        // Escapar caracteres especiales y buscar con newlines opcionales
+        const objStartPattern = new RegExp(`${rootObjNum}\\s+\\d+\\s+obj`, 'g');
         const objStartMatch = pdfString.match(objStartPattern);
 
         if (!objStartMatch) {
             console.error('❌ No se encontró inicio del objeto:', rootObjNum);
+            // Intentar buscar manualmente alrededor de donde debería estar
+            const searchStr = `${rootObjNum} 0 obj`;
+            const manualIndex = pdfString.indexOf(searchStr);
+            console.log(`   Búsqueda manual de "${searchStr}": ${manualIndex}`);
+
+            if (manualIndex !== -1) {
+                console.log('   Encontrado manualmente en posición:', manualIndex);
+                console.log('   Contexto:', pdfString.substring(manualIndex, manualIndex + 200));
+            }
+
             throw new Error('No se pudo encontrar objeto catálogo');
         }
 
