@@ -223,7 +223,8 @@ class PKCS7Signer {
         const annotObjNum = nextObjNum + 1;
 
         // Crear objeto de firma con placeholder
-        const signatureSize = 8192; // Espacio para la firma (4096 bytes = 8192 hex chars)
+        // TEMPORAL: Aumentado a 524288 (512KB) para debug - firma anormalmente grande
+        const signatureSize = 524288; // DEBE ser ~8192 normalmente (4KB)
         const placeholder = '0'.repeat(signatureSize);
 
         const now = new Date();
@@ -390,6 +391,7 @@ endobj
         // Crear mensaje PKCS#7
         const p7 = this.forge.pkcs7.createSignedData();
 
+        // Para firma detached, establecer contenido pero será excluido en sign()
         p7.content = this.forge.util.createBuffer(data);
 
         // Agregar certificado
@@ -416,16 +418,51 @@ endobj
             ]
         });
 
-        // Generar firma (detached = true, no incluye el contenido original)
+        // Generar firma (detached = true, NO incluye el contenido en el output)
         p7.sign({ detached: true });
 
+        // Convertir a ASN.1
+        let asn1 = p7.toAsn1();
+
+        console.log('🔍 Debug firma PKCS#7:');
+        console.log(`   - Tamaño datos firmados: ${data.length} bytes`);
+
+        // CRÍTICO: Verificar y eliminar eContent para firma verdaderamente detached
+        // La estructura PKCS#7 SignedData es: SEQUENCE { ... contentInfo SEQUENCE { contentType, [0] eContent } ... }
+        // Para detached, eContent debe estar ausente o vacío
+        try {
+            // asn1.value[1] es el SignedData SEQUENCE
+            // dentro de SignedData, value[2] es contentInfo
+            const signedData = asn1.value[1];
+            const contentInfo = signedData.value[2];
+
+            console.log(`   - contentInfo type: ${contentInfo.tagClass}/${contentInfo.type}/${contentInfo.constructed}`);
+            console.log(`   - contentInfo value length: ${contentInfo.value ? contentInfo.value.length : 'null'}`);
+
+            // Si contentInfo tiene eContent ([0] EXPLICIT), eliminarlo para detached signature
+            if (contentInfo.value && contentInfo.value.length > 1) {
+                console.log(`   ⚠️ Removiendo eContent de contentInfo para firma detached`);
+                // Mantener solo el OID (contentType), eliminar el eContent [0] EXPLICIT
+                contentInfo.value = [contentInfo.value[0]];  // Solo contentType OID
+            }
+        } catch (e) {
+            console.warn(`   ⚠️ No se pudo modificar eContent: ${e.message}`);
+        }
+
         // Convertir a DER
-        const derBuffer = this.forge.asn1.toDer(p7.toAsn1()).getBytes();
+        const derBuffer = this.forge.asn1.toDer(asn1).getBytes();
+        console.log(`   - Tamaño DER final: ${derBuffer.length} bytes`);
 
         // Convertir a hex string
         const hexString = this.forge.util.bytesToHex(derBuffer);
 
-        console.log(`✅ Firma PKCS#7 generada: ${hexString.length} caracteres hex`);
+        console.log(`   - Tamaño hex: ${hexString.length} caracteres`);
+        console.log(`✅ Firma PKCS#7 generada (esperado: 4000-8000 chars)`);
+
+        // Validar tamaño razonable
+        if (hexString.length > 16384) {
+            console.warn(`⚠️ ADVERTENCIA: Firma muy grande (${hexString.length} chars). Posible problema.`);
+        }
 
         return hexString;
     }
