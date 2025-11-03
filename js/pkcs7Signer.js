@@ -383,7 +383,7 @@ endobj
     }
 
     /**
-     * Crea la firma PKCS#7 detached (versión simplificada sin manipular ASN.1)
+     * Crea la firma PKCS#7 detached
      */
     createPKCS7Signature(data, certificate, privateKey) {
         console.log('🔏 Generando firma PKCS#7 detached...');
@@ -391,22 +391,14 @@ endobj
         // Crear mensaje PKCS#7
         const p7 = this.forge.pkcs7.createSignedData();
 
-        // NO establecer p7.content - será detached desde el inicio
-        // En su lugar, calcularemos el hash manualmente y lo agregaremos a authenticatedAttributes
-
-        // Calcular hash SHA-256 del contenido
-        const md = this.forge.md.sha256.create();
-        // Convertir Uint8Array a string binario para forge
+        // Establecer contenido - forge lo necesita para calcular messageDigest
         const dataString = this.uint8ArrayToString(data);
-        md.update(dataString);
-        const digest = md.digest();
-
-        console.log(`   - Hash SHA-256 calculado: ${digest.toHex().substring(0, 32)}...`);
+        p7.content = this.forge.util.createBuffer(dataString);
 
         // Agregar certificado
         p7.addCertificate(certificate);
 
-        // Agregar firmante con messageDigest pre-calculado
+        // Agregar firmante
         p7.addSigner({
             key: privateKey,
             certificate: certificate,
@@ -417,8 +409,8 @@ endobj
                     value: this.forge.pki.oids.data
                 },
                 {
-                    type: this.forge.pki.oids.messageDigest,
-                    value: digest.bytes()  // Hash pre-calculado
+                    type: this.forge.pki.oids.messageDigest
+                    // forge calcula automáticamente el hash
                 },
                 {
                     type: this.forge.pki.oids.signingTime,
@@ -427,9 +419,8 @@ endobj
             ]
         });
 
-        // Generar firma (detached = true)
-        // Como no establecimos p7.content, debería crear una firma detached limpia
-        p7.sign({ detached: false });  // CAMBIO: false para que no intente incluir contenido
+        // Generar firma (detached=true para no incluir contenido en output)
+        p7.sign({ detached: true });
 
         // Convertir a ASN.1
         let asn1 = p7.toAsn1();
@@ -437,7 +428,7 @@ endobj
         console.log('🔍 Debug firma PKCS#7:');
         console.log(`   - Tamaño datos firmados: ${data.length} bytes`);
 
-        // CRÍTICO: Limpiar eContent manualmente para asegurar firma detached
+        // CRÍTICO: Eliminar eContent para firma detached
         try {
             console.log(`   - Estructura ASN.1 nivel superior: ${asn1.value.length} elementos`);
 
@@ -465,7 +456,6 @@ endobj
             }
         } catch (e) {
             console.warn(`   ⚠️ Error manipulando eContent: ${e.message}`);
-            console.warn(`   Stack: ${e.stack}`);
         }
 
         // Convertir a DER
