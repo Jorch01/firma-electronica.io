@@ -428,35 +428,8 @@ endobj
         console.log('🔍 Debug firma PKCS#7:');
         console.log(`   - Tamaño datos firmados: ${data.length} bytes`);
 
-        // CRÍTICO: Eliminar eContent para firma detached
-        try {
-            console.log(`   - Estructura ASN.1 nivel superior: ${asn1.value.length} elementos`);
-
-            if (asn1.value.length >= 2) {
-                const signedDataWrapper = asn1.value[1];
-                console.log(`   - signedDataWrapper type: ${signedDataWrapper.type}, constructed: ${signedDataWrapper.constructed}`);
-
-                if (signedDataWrapper.value && signedDataWrapper.value.length > 0) {
-                    const signedData = signedDataWrapper.value[0];
-                    console.log(`   - signedData elements: ${signedData.value ? signedData.value.length : 'null'}`);
-
-                    if (signedData.value && signedData.value.length >= 3) {
-                        const encapContentInfo = signedData.value[2];
-                        console.log(`   - encapContentInfo elements: ${encapContentInfo.value ? encapContentInfo.value.length : 'null'}`);
-
-                        if (encapContentInfo.value && encapContentInfo.value.length > 1) {
-                            console.log(`   ⚠️ Removiendo eContent para firma detached`);
-                            encapContentInfo.value = [encapContentInfo.value[0]];
-                            console.log(`   ✅ eContent eliminado`);
-                        } else {
-                            console.log(`   ℹ️ encapContentInfo ya es detached (1 elemento)`);
-                        }
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn(`   ⚠️ Error manipulando eContent: ${e.message}`);
-        }
+        // NO manipular eContent - dejar que forge maneje detached correctamente
+        console.log(`   ℹ️ Usando firma PKCS#7 generada por forge sin modificaciones`);
 
         // Convertir a DER
         const derBuffer = this.forge.asn1.toDer(asn1).getBytes();
