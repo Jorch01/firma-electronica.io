@@ -433,10 +433,10 @@ endobj
 
         const attrsMd = this.forge.md.sha256.create();
         attrsMd.update(attrsBytes);
-        const attrsDigest = attrsMd.digest();
 
         // Firmar el hash de los authenticated attributes con RSA
-        const signature = privateKey.sign(attrsDigest);
+        // Pasar el objeto MD completo (no solo digest) para que forge conozca el algoritmo
+        const signature = privateKey.sign(attrsMd);
         console.log(`   - Firma RSA generada: ${signature.length} bytes`);
 
         // 4. Crear estructura PKCS#7 SignedData completa
