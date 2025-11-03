@@ -193,6 +193,26 @@ class PDFSigner {
                 throw new Error(`PDF inválido después de firma. Header: ${header}`);
             }
 
+            // Verificación del final del PDF (debe terminar con %%EOF)
+            console.log('🔍 Verificando final del PDF...');
+            const last100 = finalPdfBytes.slice(-100);
+            const last100str = String.fromCharCode(...last100);
+
+            console.log('📄 Últimos 100 caracteres del PDF:');
+            console.log(last100str.split('\n').map(line => '  ' + line).join('\n'));
+
+            if (!last100str.includes('%%EOF')) {
+                console.error('⚠️ ADVERTENCIA: PDF no termina con %%EOF');
+                console.error('   El PDF puede estar corrupto internamente');
+            } else {
+                console.log('✅ PDF termina correctamente con %%EOF');
+            }
+
+            // Mostrar primeros 200 bytes para diagnóstico completo
+            console.log('📄 Primeros 200 bytes del PDF firmado:');
+            const first200str = String.fromCharCode(...finalPdfBytes.slice(0, 200));
+            console.log(first200str.split('\n').map(line => '  ' + line).join('\n'));
+
             console.log(`✅ PDF firmado exitosamente: ${finalPdfBytes.length} bytes`);
 
             // Calcular hash final
