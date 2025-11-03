@@ -55,154 +55,95 @@ class PDFSigner {
         try {
             console.log('🔐 Iniciando firma compatible con Adobe Acrobat...');
 
-            // Agregar firma visible si se requiere
-            if (visible) {
-                console.log('📝 Agregando firma visible...');
-                await this.addVisibleSignature({
-                    page: page - 1, // pdf-lib usa índice base 0
-                    x,
-                    y,
+            // TEMPORALMENTE: Usar PDF original sin modificaciones de pdf-lib
+            // para probar si PDFSIGN funciona correctamente
+            const USE_ORIGINAL_PDF = true; // Cambiar a false para usar pdf-lib
+
+            let pdfToSign;
+
+            if (USE_ORIGINAL_PDF) {
+                console.log('⚠️ MODO TEST: Usando PDF original sin modificaciones de pdf-lib');
+                console.log('   (Firma visible y metadatos desactivados temporalmente)');
+                pdfToSign = this.pdfBytes; // PDF original sin modificar
+            } else {
+                // Agregar firma visible si se requiere
+                if (visible) {
+                    console.log('📝 Agregando firma visible...');
+                    await this.addVisibleSignature({
+                        page: page - 1, // pdf-lib usa índice base 0
+                        x,
+                        y,
+                        reason,
+                        location
+                    });
+                }
+
+                // Agregar metadatos informativos
+                this.addMetadata({
                     reason,
-                    location
+                    location,
+                    contactInfo,
+                    certificationLevel,
+                    signature: { hash: 'Pending Adobe signature' },
+                    includeTimestamp
                 });
+
+                // Serializar PDF con firma visible y metadatos
+                console.log('📄 Serializando PDF con pdf-lib...');
+                pdfToSign = await this.pdfDoc.save();
             }
 
-            // Agregar metadatos informativos
-            this.addMetadata({
-                reason,
-                location,
-                contactInfo,
-                certificationLevel,
-                signature: { hash: 'Pending Adobe signature' },
-                includeTimestamp
-            });
+            const pdfWithVisibleSignature = pdfToSign;
 
-            // Serializar PDF con firma visible y metadatos
-            console.log('📄 Serializando PDF con pdf-lib...');
-            const pdfWithVisibleSignature = await this.pdfDoc.save();
-
-            // Debugging: Verificar el PDF ANTES de pasarlo a PDFSIGN
-            console.log('🔍 DEBUGGING - PDF antes de PDFSIGN:');
-            console.log('   - Tipo:', pdfWithVisibleSignature.constructor.name);
-            console.log('   - Tamaño:', pdfWithVisibleSignature.length || pdfWithVisibleSignature.byteLength, 'bytes');
+            // Verificar el PDF antes de firmar
+            console.log('📄 PDF a firmar:', pdfWithVisibleSignature.length || pdfWithVisibleSignature.byteLength, 'bytes');
             const headerBefore = String.fromCharCode(...pdfWithVisibleSignature.slice(0, 4));
-            console.log('   - Header:', headerBefore, headerBefore === '%PDF' ? '✅' : '❌');
+            if (headerBefore !== '%PDF') {
+                throw new Error('PDF inválido antes de firma');
+            }
 
-            // Obtener contraseña del certificado del almacenamiento temporal
+            // Obtener contraseña del certificado
             const certPassword = window.certHandler.lastPassword || password;
             if (!certPassword) {
-                throw new Error('Se requiere la contraseña del certificado para firmar digitalmente');
+                throw new Error('Se requiere la contraseña del certificado');
             }
-            console.log('🔑 Contraseña disponible:', certPassword ? 'Sí (longitud: ' + certPassword.length + ')' : 'No');
 
-            // Convertir certificado a formato PKCS#12 para pdfsign.js
-            console.log('🔑 Convirtiendo certificado a PKCS#12...');
+            // Convertir certificado a formato PKCS#12
+            console.log('🔑 Generando certificado PKCS#12...');
             const p12Bytes = window.certHandler.getPKCS12Bytes(certPassword);
-            console.log('🔍 DEBUGGING - P12:');
-            console.log('   - Tipo:', p12Bytes.constructor.name);
-            console.log('   - Tamaño:', p12Bytes.length || p12Bytes.byteLength, 'bytes');
 
-            // Verificar que PDFSIGN está disponible
+            // Verificar PDFSIGN
             if (typeof PDFSIGN === 'undefined' || !PDFSIGN.signpdf) {
-                throw new Error('Biblioteca PDFSIGN no está cargada');
+                throw new Error('Biblioteca PDFSIGN no disponible');
             }
-            console.log('✅ PDFSIGN está disponible');
 
-            // Firmar con pdfsign.js para compatibilidad con Adobe
-            console.log('✍️ Firmando con PDFSIGN para Adobe Acrobat...');
-
-            // PDFSIGN necesita el PDF como ArrayBuffer, no como Uint8Array ni string
-            console.log('🔄 Asegurando que PDF sea ArrayBuffer para pdfsign...');
+            // Convertir a ArrayBuffer si es necesario
             let pdfArrayBuffer;
             if (pdfWithVisibleSignature instanceof ArrayBuffer) {
                 pdfArrayBuffer = pdfWithVisibleSignature;
             } else if (pdfWithVisibleSignature instanceof Uint8Array) {
-                // Convertir Uint8Array a ArrayBuffer
                 pdfArrayBuffer = pdfWithVisibleSignature.buffer.slice(
                     pdfWithVisibleSignature.byteOffset,
                     pdfWithVisibleSignature.byteOffset + pdfWithVisibleSignature.byteLength
                 );
             } else {
-                throw new Error('Formato de PDF no soportado para firma');
-            }
-            console.log('   PDF como ArrayBuffer:', pdfArrayBuffer.byteLength, 'bytes');
-
-            // Verificar header del ArrayBuffer
-            const headerCheck = new Uint8Array(pdfArrayBuffer.slice(0, 4));
-            const headerStr = String.fromCharCode(...headerCheck);
-            console.log('   Header verificado:', headerStr, headerStr === '%PDF' ? '✅' : '❌');
-
-            // Helper function para hexdump
-            const hexDump = (bytes, label, count = 32) => {
-                const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-                const hex = Array.from(arr.slice(0, count))
-                    .map(b => b.toString(16).padStart(2, '0').toUpperCase())
-                    .join(' ');
-                const ascii = Array.from(arr.slice(0, count))
-                    .map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.')
-                    .join('');
-                console.log(`${label}:`);
-                console.log(`  HEX: ${hex}`);
-                console.log(`  ASCII: ${ascii}`);
-            };
-
-            // Mostrar primeros bytes del input
-            hexDump(pdfArrayBuffer, '📥 INPUT PDF después de pdf-lib (primeros 32 bytes)');
-
-            // DIAGNÓSTICO: Probar PDFSIGN con el PDF ORIGINAL (sin modificar por pdf-lib)
-            console.log('🔬 DIAGNÓSTICO: Probando PDFSIGN con PDF original (sin modificaciones de pdf-lib)...');
-            try {
-                const originalPdfBytes = this.pdfBytes; // PDF original cargado
-                hexDump(originalPdfBytes, '📥 PDF ORIGINAL (antes de pdf-lib)');
-
-                console.log('   Intentando firmar PDF original directamente...');
-                const testResult = PDFSIGN.signpdf(
-                    originalPdfBytes,
-                    p12Bytes,
-                    certPassword
-                );
-                console.log('✅ TEST: PDFSIGN con PDF original completado');
-                hexDump(testResult, '📤 TEST RESULT (primeros 32 bytes)');
-
-                const testHeader = String.fromCharCode(...(testResult instanceof Uint8Array ? testResult : new Uint8Array(testResult)).slice(0, 4));
-                console.log('   Header del test:', testHeader, testHeader === '%PDF' ? '✅ VÁLIDO' : '❌ CORRUPTO');
-
-                if (testHeader === '%PDF') {
-                    console.log('🎯 CONCLUSIÓN: PDFSIGN funciona con PDF original pero NO con salida de pdf-lib');
-                    console.log('   ⚠️ Problema: pdf-lib genera PDFs incompatibles con PDFSIGN');
-                } else {
-                    console.log('🎯 CONCLUSIÓN: PDFSIGN falla incluso con PDF original');
-                    console.log('   ⚠️ Problema: Puede ser certificado P12 o contraseña');
-                }
-            } catch (testError) {
-                console.error('❌ TEST FALLÓ:', testError.message);
-                console.log('   El error sugiere problema en PDFSIGN o sus dependencias');
+                throw new Error('Formato de PDF no soportado');
             }
 
-            console.log('\n📍 Ahora intentando con PDF modificado por pdf-lib...');
-
+            // Firmar con PDFSIGN
+            console.log('✍️ Firmando PDF con PDFSIGN...');
             let signedPdfBytes;
+
             try {
-                console.log('   Llamando: PDFSIGN.signpdf(ArrayBuffer, p12Uint8Array, password)');
-                const signedPdfResult = PDFSIGN.signpdf(
-                    pdfArrayBuffer,  // ArrayBuffer
-                    p12Bytes,        // Uint8Array
-                    certPassword     // String
-                );
-                console.log('✅ PDFSIGN.signpdf() completado sin excepciones');
-                console.log('   Tipo retornado:', signedPdfResult.constructor.name);
-                console.log('   Tamaño:', signedPdfResult.length || signedPdfResult.byteLength, 'bytes');
+                const signedPdfResult = PDFSIGN.signpdf(pdfArrayBuffer, p12Bytes, certPassword);
+                console.log('✅ PDFSIGN completó sin errores');
 
-                // Mostrar primeros bytes del resultado INMEDIATAMENTE
-                hexDump(signedPdfResult, '📤 OUTPUT de PDFSIGN con pdf-lib (primeros 32 bytes)');
-
-                // Convertir resultado a Uint8Array si es necesario
+                // Convertir resultado a Uint8Array
                 if (signedPdfResult instanceof Uint8Array) {
                     signedPdfBytes = signedPdfResult;
                 } else if (signedPdfResult instanceof ArrayBuffer) {
                     signedPdfBytes = new Uint8Array(signedPdfResult);
                 } else if (typeof signedPdfResult === 'string') {
-                    console.log('🔄 Convirtiendo string a Uint8Array...');
                     signedPdfBytes = new Uint8Array(signedPdfResult.length);
                     for (let i = 0; i < signedPdfResult.length; i++) {
                         signedPdfBytes[i] = signedPdfResult.charCodeAt(i) & 0xFF;
@@ -211,82 +152,47 @@ class PDFSigner {
                     throw new Error('Tipo de resultado desconocido: ' + typeof signedPdfResult);
                 }
 
-                // Verificar después de conversión
-                if (signedPdfBytes !== signedPdfResult) {
-                    hexDump(signedPdfBytes, '🔄 Después de conversión (primeros 32 bytes)');
-                }
-
-                // 🔧 SOLUCIÓN: PDFSIGN tiene un bug que prepone basura antes del header PDF
-                // Buscar donde realmente empieza el PDF (buscar "%PDF")
-                console.log('🔍 Buscando inicio real del PDF (buscando %PDF header)...');
+                // 🔧 FIX: PDFSIGN tiene bug que prepone basura - buscar verdadero inicio del PDF
+                console.log('🔍 Verificando estructura del PDF firmado...');
                 let pdfStartIndex = -1;
-                for (let i = 0; i < signedPdfBytes.length - 4; i++) {
-                    if (signedPdfBytes[i] === 0x25 &&      // %
-                        signedPdfBytes[i+1] === 0x50 &&    // P
-                        signedPdfBytes[i+2] === 0x44 &&    // D
-                        signedPdfBytes[i+3] === 0x46) {    // F
+
+                // Buscar bytes %PDF (0x25 0x50 0x44 0x46)
+                for (let i = 0; i < Math.min(signedPdfBytes.length - 4, 100); i++) {
+                    if (signedPdfBytes[i] === 0x25 && signedPdfBytes[i+1] === 0x50 &&
+                        signedPdfBytes[i+2] === 0x44 && signedPdfBytes[i+3] === 0x46) {
                         pdfStartIndex = i;
                         break;
                     }
                 }
 
                 if (pdfStartIndex > 0) {
-                    console.log(`⚠️ PDFSIGN Bug detectado: PDF header encontrado en offset ${pdfStartIndex} (debería ser 0)`);
-                    console.log(`   Bytes basura al inicio: ${pdfStartIndex}`);
-                    hexDump(signedPdfBytes.slice(0, pdfStartIndex), `🗑️ Basura a eliminar (${pdfStartIndex} bytes)`);
-
-                    // Cortar la basura del inicio
+                    console.log(`⚠️ Detectado bug de PDFSIGN: ${pdfStartIndex} bytes de basura al inicio`);
+                    console.log(`   Eliminando basura...`);
                     signedPdfBytes = signedPdfBytes.slice(pdfStartIndex);
-                    console.log(`✅ Basura eliminada. Nuevo tamaño: ${signedPdfBytes.length} bytes`);
-                    hexDump(signedPdfBytes, '✅ PDF corregido (primeros 32 bytes)');
+                    console.log(`✅ PDF corregido: ${signedPdfBytes.length} bytes`);
                 } else if (pdfStartIndex === 0) {
-                    console.log('✅ PDF header en posición correcta (offset 0)');
+                    console.log('✅ PDF tiene estructura correcta');
                 } else {
-                    console.error('❌ No se encontró header %PDF en el resultado de PDFSIGN');
-                    throw new Error('PDFSIGN retornó datos inválidos sin header PDF');
+                    throw new Error('No se encontró header %PDF válido');
                 }
 
-            } catch (pdfsignError) {
-                console.error('❌ Error en PDFSIGN.signpdf():', pdfsignError);
-                throw new Error(`PDFSIGN falló: ${pdfsignError.message}`);
+            } catch (error) {
+                console.error('❌ Error en firma:', error);
+                throw new Error(`PDFSIGN falló: ${error.message}`);
             }
 
-            console.log('✅ PDF firmado digitalmente - Compatible con Adobe Acrobat');
-            console.log('📊 Tipo de resultado:', signedPdfBytes ? signedPdfBytes.constructor.name : 'null/undefined');
-            console.log('📊 Tamaño del PDF firmado:', signedPdfBytes.length || signedPdfBytes.byteLength, 'bytes');
+            // signedPdfBytes ya es Uint8Array después del procesamiento
+            const finalPdfBytes = signedPdfBytes;
 
-            // Asegurar que sea Uint8Array
-            let finalPdfBytes;
-            if (signedPdfBytes instanceof Uint8Array) {
-                finalPdfBytes = signedPdfBytes;
-            } else if (signedPdfBytes instanceof ArrayBuffer) {
-                finalPdfBytes = new Uint8Array(signedPdfBytes);
-            } else if (typeof signedPdfBytes === 'string') {
-                // Convertir string binario a Uint8Array
-                const bytes = new Uint8Array(signedPdfBytes.length);
-                for (let i = 0; i < signedPdfBytes.length; i++) {
-                    bytes[i] = signedPdfBytes.charCodeAt(i);
-                }
-                finalPdfBytes = bytes;
-            } else {
-                console.error('❌ Tipo de PDF firmado no reconocido:', typeof signedPdfBytes);
-                throw new Error('Formato de PDF firmado no válido');
-            }
-
-            console.log('✅ PDF convertido a Uint8Array:', finalPdfBytes.length, 'bytes');
-
-            // Verificar que sea un PDF válido (debe empezar con %PDF)
+            // Verificación final del header
             const header = String.fromCharCode(...finalPdfBytes.slice(0, 4));
-            console.log('📄 Verificación final - Header del PDF:', header);
             if (header !== '%PDF') {
-                console.error('❌ El archivo no parece ser un PDF válido. Header:', header);
-                console.error('   Esto no debería ocurrir después de la corrección del bug de PDFSIGN');
-                hexDump(finalPdfBytes, '❌ Primeros 64 bytes del PDF inválido', 64);
-                throw new Error('El PDF firmado no tiene un formato válido después de corrección');
+                throw new Error(`PDF inválido después de firma. Header: ${header}`);
             }
-            console.log('✅ Verificación exitosa: PDF tiene formato válido');
 
-            // Calcular hash final del PDF firmado
+            console.log(`✅ PDF firmado exitosamente: ${finalPdfBytes.length} bytes`);
+
+            // Calcular hash final
             const finalHash = window.certHandler.createHash(finalPdfBytes);
 
             return {
