@@ -132,6 +132,55 @@ class PDFSigner {
             const headerStr = String.fromCharCode(...headerCheck);
             console.log('   Header verificado:', headerStr, headerStr === '%PDF' ? '✅' : '❌');
 
+            // Helper function para hexdump
+            const hexDump = (bytes, label, count = 32) => {
+                const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+                const hex = Array.from(arr.slice(0, count))
+                    .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+                    .join(' ');
+                const ascii = Array.from(arr.slice(0, count))
+                    .map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.')
+                    .join('');
+                console.log(`${label}:`);
+                console.log(`  HEX: ${hex}`);
+                console.log(`  ASCII: ${ascii}`);
+            };
+
+            // Mostrar primeros bytes del input
+            hexDump(pdfArrayBuffer, '📥 INPUT PDF después de pdf-lib (primeros 32 bytes)');
+
+            // DIAGNÓSTICO: Probar PDFSIGN con el PDF ORIGINAL (sin modificar por pdf-lib)
+            console.log('🔬 DIAGNÓSTICO: Probando PDFSIGN con PDF original (sin modificaciones de pdf-lib)...');
+            try {
+                const originalPdfBytes = this.pdfBytes; // PDF original cargado
+                hexDump(originalPdfBytes, '📥 PDF ORIGINAL (antes de pdf-lib)');
+
+                console.log('   Intentando firmar PDF original directamente...');
+                const testResult = PDFSIGN.signpdf(
+                    originalPdfBytes,
+                    p12Bytes,
+                    certPassword
+                );
+                console.log('✅ TEST: PDFSIGN con PDF original completado');
+                hexDump(testResult, '📤 TEST RESULT (primeros 32 bytes)');
+
+                const testHeader = String.fromCharCode(...(testResult instanceof Uint8Array ? testResult : new Uint8Array(testResult)).slice(0, 4));
+                console.log('   Header del test:', testHeader, testHeader === '%PDF' ? '✅ VÁLIDO' : '❌ CORRUPTO');
+
+                if (testHeader === '%PDF') {
+                    console.log('🎯 CONCLUSIÓN: PDFSIGN funciona con PDF original pero NO con salida de pdf-lib');
+                    console.log('   ⚠️ Problema: pdf-lib genera PDFs incompatibles con PDFSIGN');
+                } else {
+                    console.log('🎯 CONCLUSIÓN: PDFSIGN falla incluso con PDF original');
+                    console.log('   ⚠️ Problema: Puede ser certificado P12 o contraseña');
+                }
+            } catch (testError) {
+                console.error('❌ TEST FALLÓ:', testError.message);
+                console.log('   El error sugiere problema en PDFSIGN o sus dependencias');
+            }
+
+            console.log('\n📍 Ahora intentando con PDF modificado por pdf-lib...');
+
             let signedPdfBytes;
             try {
                 console.log('   Llamando: PDFSIGN.signpdf(ArrayBuffer, p12Uint8Array, password)');
@@ -143,6 +192,9 @@ class PDFSigner {
                 console.log('✅ PDFSIGN.signpdf() completado sin excepciones');
                 console.log('   Tipo retornado:', signedPdfResult.constructor.name);
                 console.log('   Tamaño:', signedPdfResult.length || signedPdfResult.byteLength, 'bytes');
+
+                // Mostrar primeros bytes del resultado INMEDIATAMENTE
+                hexDump(signedPdfResult, '📤 OUTPUT de PDFSIGN con pdf-lib (primeros 32 bytes)');
 
                 // Convertir resultado a Uint8Array si es necesario
                 if (signedPdfResult instanceof Uint8Array) {
@@ -157,6 +209,11 @@ class PDFSigner {
                     }
                 } else {
                     throw new Error('Tipo de resultado desconocido: ' + typeof signedPdfResult);
+                }
+
+                // Verificar después de conversión
+                if (signedPdfBytes !== signedPdfResult) {
+                    hexDump(signedPdfBytes, '🔄 Después de conversión (primeros 32 bytes)');
                 }
             } catch (pdfsignError) {
                 console.error('❌ Error en PDFSIGN.signpdf():', pdfsignError);
