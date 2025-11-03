@@ -81,8 +81,12 @@ class PDFSigner {
             });
 
             // Serializar PDF con firma visible y metadatos
-            console.log('📄 Guardando PDF con firma visible...');
-            const pdfWithVisibleSignature = await this.pdfDoc.save();
+            // IMPORTANTE: Deshabilitar useObjectStreams para que todos los objetos sean texto plano
+            console.log('📄 Guardando PDF con firma visible (sin object streams)...');
+            const pdfWithVisibleSignature = await this.pdfDoc.save({
+                useObjectStreams: false,  // Crítico: evita objetos comprimidos
+                addDefaultPage: false
+            });
 
             // Agregar firma digital PKCS#7
             console.log('🔏 Agregando firma digital PKCS#7...');
