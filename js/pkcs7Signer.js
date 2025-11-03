@@ -223,8 +223,8 @@ class PKCS7Signer {
         const annotObjNum = nextObjNum + 1;
 
         // Crear objeto de firma con placeholder
-        // TEMPORAL: Aumentado a 524288 (512KB) para debug - firma anormalmente grande
-        const signatureSize = 524288; // DEBE ser ~8192 normalmente (4KB)
+        // TEMPORAL: Aumentado a 1048576 (1MB) porque forge incluye contenido completo
+        const signatureSize = 1048576; // Firma con contenido ~535KB, necesitamos espacio extra
         const placeholder = '0'.repeat(signatureSize);
 
         const now = new Date();
