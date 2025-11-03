@@ -427,26 +427,46 @@ endobj
         console.log('🔍 Debug firma PKCS#7:');
         console.log(`   - Tamaño datos firmados: ${data.length} bytes`);
 
-        // CRÍTICO: Verificar y eliminar eContent para firma verdaderamente detached
-        // La estructura PKCS#7 SignedData es: SEQUENCE { ... contentInfo SEQUENCE { contentType, [0] eContent } ... }
-        // Para detached, eContent debe estar ausente o vacío
+        // CRÍTICO: Eliminar eContent para firma verdaderamente detached
+        // Estructura PKCS#7: ContentInfo { contentType, [0] EXPLICIT SignedData }
+        // SignedData: { version, digestAlgs, encapContentInfo, certs, crls, signerInfos }
+        // encapContentInfo: { eContentType, [0] EXPLICIT eContent } ← eContent debe eliminarse
         try {
-            // asn1.value[1] es el SignedData SEQUENCE
-            // dentro de SignedData, value[2] es contentInfo
-            const signedData = asn1.value[1];
-            const contentInfo = signedData.value[2];
+            console.log(`   - Estructura ASN.1 nivel superior: ${asn1.value.length} elementos`);
 
-            console.log(`   - contentInfo type: ${contentInfo.tagClass}/${contentInfo.type}/${contentInfo.constructed}`);
-            console.log(`   - contentInfo value length: ${contentInfo.value ? contentInfo.value.length : 'null'}`);
+            // asn1 es ContentInfo SEQUENCE con 2 elementos:
+            // [0] = OID (pkcs7-signedData)
+            // [1] = [0] EXPLICIT conteniendo SignedData
+            if (asn1.value.length >= 2) {
+                const signedDataWrapper = asn1.value[1];  // [0] EXPLICIT
+                console.log(`   - signedDataWrapper type: ${signedDataWrapper.type}, constructed: ${signedDataWrapper.constructed}`);
 
-            // Si contentInfo tiene eContent ([0] EXPLICIT), eliminarlo para detached signature
-            if (contentInfo.value && contentInfo.value.length > 1) {
-                console.log(`   ⚠️ Removiendo eContent de contentInfo para firma detached`);
-                // Mantener solo el OID (contentType), eliminar el eContent [0] EXPLICIT
-                contentInfo.value = [contentInfo.value[0]];  // Solo contentType OID
+                if (signedDataWrapper.value && signedDataWrapper.value.length > 0) {
+                    const signedData = signedDataWrapper.value[0];  // SignedData SEQUENCE
+                    console.log(`   - signedData elements: ${signedData.value ? signedData.value.length : 'null'}`);
+
+                    if (signedData.value && signedData.value.length >= 3) {
+                        // signedData.value[0] = version
+                        // signedData.value[1] = digestAlgorithms
+                        // signedData.value[2] = encapContentInfo
+                        const encapContentInfo = signedData.value[2];
+                        console.log(`   - encapContentInfo elements: ${encapContentInfo.value ? encapContentInfo.value.length : 'null'}`);
+
+                        if (encapContentInfo.value && encapContentInfo.value.length > 1) {
+                            // encapContentInfo tiene: [0] eContentType OID, [1] [0] EXPLICIT eContent
+                            console.log(`   ⚠️ Removiendo eContent (elemento ${encapContentInfo.value.length - 1}) para firma detached`);
+                            // Mantener solo el eContentType OID, eliminar el eContent
+                            encapContentInfo.value = [encapContentInfo.value[0]];
+                            console.log(`   ✅ eContent eliminado - encapContentInfo ahora tiene ${encapContentInfo.value.length} elemento(s)`);
+                        } else {
+                            console.log(`   ℹ️ encapContentInfo ya no tiene eContent (detached OK)`);
+                        }
+                    }
+                }
             }
         } catch (e) {
             console.warn(`   ⚠️ No se pudo modificar eContent: ${e.message}`);
+            console.warn(`   Stack: ${e.stack}`);
         }
 
         // Convertir a DER
