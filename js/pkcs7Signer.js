@@ -419,7 +419,7 @@ endobj
         const contentDigest = md.digest();
         console.log(`   - Hash SHA-256: ${contentDigest.toHex().substring(0, 32)}...`);
 
-        // 2. Crear authenticated attributes
+        // 2. Crear authenticated attributes (solo contentType y messageDigest como Adobe)
         const authenticatedAttributes = [
             // contentType (OID 1.2.840.113549.1.9.3)
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
@@ -438,16 +438,8 @@ endobj
                     this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OCTETSTRING, false,
                         contentDigest.bytes())
                 ])
-            ]),
-            // signingTime (OID 1.2.840.113549.1.9.5)
-            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
-                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
-                    this.forge.asn1.oidToDer(this.forge.pki.oids.signingTime).getBytes()),
-                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [
-                    this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.UTCTIME, false,
-                        this.forge.asn1.dateToUtcTime(new Date()))
-                ])
             ])
+            // NOTA: Adobe NO incluye signingTime, solo contentType y messageDigest
         ];
 
         // 3. Codificar como SET - forge ordena automáticamente según DER
