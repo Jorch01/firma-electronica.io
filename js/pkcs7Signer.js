@@ -527,10 +527,10 @@ endobj
             ]),
             // signedAttrs [0] IMPLICIT - usar el objeto parseado
             attrsImplicitAsn1,
-            // signatureAlgorithm = RSA
+            // signatureAlgorithm = SHA-256 with RSA Encryption
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
                 this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
-                    this.forge.asn1.oidToDer(this.forge.pki.oids.rsaEncryption).getBytes()),
+                    this.forge.asn1.oidToDer(this.forge.pki.oids.sha256WithRSAEncryption).getBytes()),
                 this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.NULL, false, '')
             ]),
             // signature
