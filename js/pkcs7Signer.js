@@ -438,29 +438,14 @@ endobj
         attrsMd.update(attrsSetBytes);
 
         // Firmar el hash de los authenticated attributes con RSA
-        // Pasar el objeto MD completo (no solo digest) para que forge conozca el algoritmo
         const signature = privateKey.sign(attrsMd);
         console.log(`   - Firma RSA generada: ${signature.length} bytes`);
 
-        // Extraer el CONTENIDO del SET (sin tag y length) para usar en [0] IMPLICIT
-        // El DER del SET es: [tag][length][contenido]
-        // Necesitamos solo el contenido para que [0] IMPLICIT tenga exactamente los mismos bytes
-        let offset = 1; // Saltar tag
-        const lengthByte = attrsSetBytes.charCodeAt(offset);
-        if (lengthByte & 0x80) {
-            // Long form length
-            const numLengthBytes = lengthByte & 0x7F;
-            offset += 1 + numLengthBytes;
-        } else {
-            // Short form length
-            offset += 1;
-        }
-        const attrsContent = attrsSetBytes.substring(offset);
-
         // 4. Crear estructura PKCS#7 SignedData completa
+        // Pasar el array de attributes - forge los codificará en [0] IMPLICIT
         const signedData = this.createSignedDataASN1(
             certificate,
-            attrsContent,  // Pasar los bytes del contenido, no el array
+            authenticatedAttributes,  // Array de objetos ASN.1
             signature
         );
 
@@ -487,10 +472,10 @@ endobj
     /**
      * Crea la estructura ASN.1 SignedData
      * @param {Object} certificate - El certificado
-     * @param {string} authenticatedAttributesContent - Los bytes del contenido de los attributes (sin tag SET)
+     * @param {Array} authenticatedAttributes - Array de objetos ASN.1 de los attributes
      * @param {string} signature - La firma RSA
      */
-    createSignedDataASN1(certificate, authenticatedAttributesContent, signature) {
+    createSignedDataASN1(certificate, authenticatedAttributes, signature) {
         // Convertir certificado a ASN.1
         const certAsn1 = this.forge.pki.certificateToAsn1(certificate);
 
@@ -517,16 +502,9 @@ endobj
                     this.forge.asn1.oidToDer(this.forge.pki.oids.sha256).getBytes()),
                 this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.NULL, false, '')
             ]),
-            // signedAttrs [0] IMPLICIT - usar los bytes exactos que firmamos
-            // CRÍTICO: estos bytes deben ser idénticos a los que se firmaron
-            // Crear objeto ASN.1 manualmente con bytes raw como value
-            {
-                tagClass: this.forge.asn1.Class.CONTEXT_SPECIFIC,
-                type: 0,
-                constructed: true,
-                value: authenticatedAttributesContent,  // bytes raw del contenido del SET
-                composed: true
-            },
+            // signedAttrs [0] IMPLICIT
+            // Forge codificará estos attributes exactamente igual que el SET que firmamos
+            this.forge.asn1.create(this.forge.asn1.Class.CONTEXT_SPECIFIC, 0, true, authenticatedAttributes),
             // signatureAlgorithm = RSA
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
                 this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
