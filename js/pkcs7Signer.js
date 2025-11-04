@@ -43,7 +43,8 @@ class PKCS7Signer {
 
             // 3. CRÍTICO: Actualizar ByteRange en el PDF ANTES de firmar
             console.log('📝 Actualizando ByteRange en PDF...');
-            const byteRangeStr = `[${byteRange.map(n => String(n).padStart(10, '0')).join(' ')}]`;
+            // Adobe NO usa padding de ceros, usa espacios (como en su ejemplo: [ 0 60009 67785 240599])
+            const byteRangeStr = `[${byteRange.map(n => String(n).padStart(10, ' ')).join(' ')}]`;
             console.log('   ByteRange string:', byteRangeStr);
             console.log('   ByteRange length:', byteRangeStr.length);
 
@@ -256,7 +257,7 @@ ${sigObjNum} 0 obj
 /Reason (${options.reason})
 /Location (${options.location})
 /M (${dateStr})
-/ByteRange [0000000000 0000000000 0000000000 0000000000]
+/ByteRange [         0          0          0          0]
 /Contents <${placeholder}>
 >>
 endobj
