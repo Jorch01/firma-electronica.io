@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extraer Certificados del PDF de Adobe</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .upload-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        .cert-box {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .cert-box h3 {
+            margin-top: 0;
+            color: #2196F3;
+        }
+        .cert-content {
+            background: white;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            word-break: break-all;
+        }
+        .copy-btn {
+            background-color: #2196F3;
+            color: white;
+            padding: 5px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .copy-btn:hover {
+            background-color: #0b7dda;
+        }
+        .info {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .success {
+            background-color: #e8f5e9;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .error {
+            background-color: #ffebee;
+            border-left: 4px solid #f44336;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        pre {
+            margin: 5px 0;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Extraer Certificados del PDF Firmado por Adobe</h1>
+
+        <div class="info">
+            <strong>📋 Instrucciones:</strong>
+            <ol>
+                <li>Selecciona tu archivo <code>test_firmado_adobe.pdf</code></li>
+                <li>Esta herramienta extraerá TODOS los certificados incluidos en la firma PKCS#7</li>
+                <li>Copia los certificados intermedios (NO el primero, que es tu certificado)</li>
+                <li>Guárdalos para incluirlos en tu aplicación</li>
+            </ol>
+        </div>
+
+        <div class="upload-section">
+            <input type="file" id="pdfFile" accept=".pdf" style="margin-bottom: 10px;">
+            <br>
+            <button class="button" onclick="extractCertificates()">🔍 Extraer Certificados</button>
+        </div>
+
+        <div id="results" class="results"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/0.10.0/forge.min.js"></script>
+    <script>
+        function uint8ArrayToString(uint8Array) {
+            return Array.from(uint8Array).map(byte => String.fromCharCode(byte)).join('');
+        }
+
+        function stringToUint8Array(str) {
+            const arr = new Uint8Array(str.length);
+            for (let i = 0; i < str.length; i++) {
+                arr[i] = str.charCodeAt(i);
+            }
+            return arr;
+        }
+
+        async function extractCertificates() {
+            const fileInput = document.getElementById('pdfFile');
+            const resultsDiv = document.getElementById('results');
+
+            if (!fileInput.files.length) {
+                resultsDiv.innerHTML = '<div class="error">❌ Por favor selecciona un archivo PDF</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="info">⏳ Procesando PDF...</div>';
+
+            try {
+                const file = fileInput.files[0];
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfBytes = new Uint8Array(arrayBuffer);
+                const pdfString = uint8ArrayToString(pdfBytes);
+
+                // Buscar la firma PKCS#7 en el PDF
+                const contentsMatch = pdfString.match(/\/Contents\s*<([0-9a-fA-F]+)>/);
+
+                if (!contentsMatch) {
+                    throw new Error('No se encontró firma digital en el PDF');
+                }
+
+                const signatureHex = contentsMatch[1];
+                console.log('Firma encontrada:', signatureHex.length, 'caracteres hex');
+
+                // Convertir hex a bytes
+                const signatureBytes = forge.util.hexToBytes(signatureHex);
+
+                // Parsear PKCS#7
+                const p7Asn1 = forge.asn1.fromDer(signatureBytes);
+
+                // ContentInfo -> SignedData
+                const contentInfo = p7Asn1;
+                const signedData = contentInfo.value[1].value[0];
+
+                // Extraer certificados (posición 3 en SignedData)
+                // SignedData: version, digestAlgorithms, encapContentInfo, certificates, signerInfos
+                const certificates = signedData.value[3];
+
+                console.log('Certificados encontrados:', certificates.value.length);
+
+                let html = '<div class="success"><strong>✅ Se encontraron ' +
+                          certificates.value.length + ' certificado(s)</strong></div>';
+
+                // Procesar cada certificado
+                for (let i = 0; i < certificates.value.length; i++) {
+                    const certAsn1 = certificates.value[i];
+
+                    // Convertir ASN.1 a bytes DER
+                    const certDer = forge.asn1.toDer(certAsn1);
+                    const certBytes = certDer.getBytes();
+
+                    // Parsear como certificado X.509
+                    const cert = forge.pki.certificateFromAsn1(certAsn1);
+
+                    // Convertir a PEM
+                    const certPem = forge.pki.certificateToPem(cert);
+
+                    // Obtener información del certificado
+                    const subject = cert.subject.attributes
+                        .map(attr => attr.shortName + '=' + attr.value)
+                        .join(', ');
+                    const issuer = cert.issuer.attributes
+                        .map(attr => attr.shortName + '=' + attr.value)
+                        .join(', ');
+
+                    const isIntermediateCert = i > 0;
+                    const certType = i === 0 ? '👤 Certificado del Firmante' :
+                                               '🔗 Certificado Intermedio #' + i;
+                    const certClass = isIntermediateCert ? 'cert-box' : 'cert-box';
+
+                    html += `
+                        <div class="${certClass}">
+                            <h3>${certType}</h3>
+                            <p><strong>Subject:</strong> ${subject}</p>
+                            <p><strong>Issuer:</strong> ${issuer}</p>
+                            <p><strong>Válido desde:</strong> ${cert.validity.notBefore}</p>
+                            <p><strong>Válido hasta:</strong> ${cert.validity.notAfter}</p>
+                            ${isIntermediateCert ? '<p style="color: #4CAF50;"><strong>⚠️ NECESITAS ESTE CERTIFICADO</strong></p>' : ''}
+
+                            <details>
+                                <summary style="cursor: pointer; margin: 10px 0;">📄 Ver PEM</summary>
+                                <div class="cert-content" id="cert-pem-${i}">${certPem}</div>
+                                <button class="copy-btn" onclick="copyCert('cert-pem-${i}')">📋 Copiar PEM</button>
+                            </details>
+
+                            <details>
+                                <summary style="cursor: pointer; margin: 10px 0;">🔢 Ver Hex (DER)</summary>
+                                <div class="cert-content" id="cert-hex-${i}">${forge.util.bytesToHex(certBytes)}</div>
+                                <button class="copy-btn" onclick="copyCert('cert-hex-${i}')">📋 Copiar Hex</button>
+                            </details>
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <div class="info">
+                        <strong>📝 Siguiente paso:</strong><br>
+                        ${certificates.value.length > 1 ?
+                            'Copia los certificados intermedios (los que dicen "NECESITAS ESTE CERTIFICADO") y guárdalos en archivos .pem para usarlos en tu aplicación.' :
+                            'Este PDF solo contiene el certificado del firmante. Necesitas obtener los certificados intermedios del CJF.'}
+                    </div>
+                `;
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error"><strong>❌ Error:</strong> ' + error.message + '</div>';
+                console.error('Error:', error);
+            }
+        }
+
+        function copyCert(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Copiado al portapapeles');
+            }).catch(err => {
+                console.error('Error al copiar:', err);
+                // Fallback: seleccionar el texto
+                const range = document.createRange();
+                range.selectNodeContents(element);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                alert('📋 Texto seleccionado. Presiona Ctrl+C (Cmd+C en Mac) para copiar.');
+            });
+        }
+    </script>
+</body>
+</html>
