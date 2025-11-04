@@ -468,7 +468,118 @@ endobj
         console.log(`   - Tamaño hex: ${hexString.length} caracteres`);
         console.log(`✅ Firma PKCS#7 detached creada manualmente`);
 
+        // DEBUG: Analizar estructura ASN.1
+        this.debugPKCS7Structure(derBuffer, contentInfo);
+
         return hexString;
+    }
+
+    /**
+     * Debug: Analiza y muestra la estructura PKCS#7
+     */
+    debugPKCS7Structure(derBuffer, contentInfo) {
+        try {
+            console.log('\n🔍 === ESTRUCTURA PKCS#7 DETALLADA ===');
+
+            // Parsear la estructura
+            const asn1 = this.forge.asn1.fromDer(this.forge.util.createBuffer(derBuffer));
+
+            console.log('\n📦 ContentInfo:');
+            console.log('  - Tag:', this.getTagName(asn1.tagClass, asn1.type, asn1.constructed));
+            console.log('  - OID:', this.forge.asn1.derToOid(asn1.value[0].value));
+
+            const signedData = asn1.value[1].value[0];
+            console.log('\n📜 SignedData:');
+            console.log('  - Version:', signedData.value[0].value[0]);
+
+            // DigestAlgorithms
+            const digestAlgos = signedData.value[1];
+            console.log('\n🔐 DigestAlgorithms SET:');
+            for (let i = 0; i < digestAlgos.value.length; i++) {
+                const alg = digestAlgos.value[i].value[0];
+                const oid = this.forge.asn1.derToOid(alg.value);
+                console.log(`  - [${i}] OID: ${oid} (${this.getOIDName(oid)})`);
+            }
+
+            // ContentInfo interno
+            const contentInfoInner = signedData.value[2];
+            console.log('\n📄 EncapContentInfo:');
+            console.log('  - eContentType OID:', this.forge.asn1.derToOid(contentInfoInner.value[0].value));
+            console.log('  - eContent:', contentInfoInner.value.length > 1 ? 'PRESENT (should be absent for detached!)' : 'ABSENT (correct for detached)');
+
+            // Certificates
+            const certificates = signedData.value[3];
+            console.log('\n📋 Certificates [0]:');
+            console.log('  - Count:', certificates.value.length);
+
+            // SignerInfos
+            const signerInfos = signedData.value[4];
+            console.log('\n✍️  SignerInfos SET:');
+            const signerInfo = signerInfos.value[0];
+            console.log('  - Version:', signerInfo.value[0].value[0]);
+
+            // IssuerAndSerialNumber
+            console.log('  - SignerIdentifier: IssuerAndSerialNumber');
+
+            // DigestAlgorithm
+            const digestAlg = signerInfo.value[2];
+            const digestAlgOid = this.forge.asn1.derToOid(digestAlg.value[0].value);
+            console.log(`  - DigestAlgorithm OID: ${digestAlgOid} (${this.getOIDName(digestAlgOid)})`);
+
+            // SignedAttrs
+            const signedAttrs = signerInfo.value[3];
+            console.log(`  - SignedAttrs [0]: Tag=0x${signedAttrs.tagClass.toString(16)}${signedAttrs.type.toString(16)}`);
+            console.log(`    - Attributes count: ${signedAttrs.value.length}`);
+            for (let i = 0; i < signedAttrs.value.length; i++) {
+                const attr = signedAttrs.value[i];
+                const attrOid = this.forge.asn1.derToOid(attr.value[0].value);
+                console.log(`    - [${i}] ${this.getOIDName(attrOid)} (${attrOid})`);
+            }
+
+            // SignatureAlgorithm
+            const sigAlg = signerInfo.value[4];
+            const sigAlgOid = this.forge.asn1.derToOid(sigAlg.value[0].value);
+            console.log(`  - SignatureAlgorithm OID: ${sigAlgOid} (${this.getOIDName(sigAlgOid)})`);
+
+            // Signature
+            const sig = signerInfo.value[5];
+            console.log(`  - Signature: ${sig.value.length} bytes`);
+
+            console.log('\n✅ === FIN ESTRUCTURA PKCS#7 ===\n');
+
+        } catch (error) {
+            console.error('❌ Error analizando estructura:', error);
+        }
+    }
+
+    /**
+     * Obtiene el nombre del tag ASN.1
+     */
+    getTagName(tagClass, type, constructed) {
+        const classNames = ['UNIVERSAL', 'APPLICATION', 'CONTEXT_SPECIFIC', 'PRIVATE'];
+        const typeNames = {
+            1: 'BOOLEAN', 2: 'INTEGER', 3: 'BITSTRING', 4: 'OCTETSTRING',
+            5: 'NULL', 6: 'OID', 12: 'UTF8STRING', 16: 'SEQUENCE',
+            17: 'SET', 23: 'UTCTIME'
+        };
+        return `${classNames[tagClass]}.${typeNames[type] || type}${constructed ? ' (constructed)' : ''}`;
+    }
+
+    /**
+     * Obtiene el nombre del OID
+     */
+    getOIDName(oid) {
+        const oidNames = {
+            '1.2.840.113549.1.7.1': 'data',
+            '1.2.840.113549.1.7.2': 'signedData',
+            '1.2.840.113549.1.9.3': 'contentType',
+            '1.2.840.113549.1.9.4': 'messageDigest',
+            '1.2.840.113549.1.9.5': 'signingTime',
+            '2.16.840.1.101.3.4.2.1': 'sha256',
+            '1.2.840.113549.1.1.1': 'rsaEncryption',
+            '1.2.840.113549.1.1.11': 'sha256WithRSAEncryption'
+        };
+        return oidNames[oid] || 'unknown';
     }
 
     /**
