@@ -396,8 +396,8 @@ endobj
         const contentDigest = md.digest();
         console.log(`   - Hash SHA-256: ${contentDigest.toHex().substring(0, 32)}...`);
 
-        // 2. Crear authenticated attributes en orden DER correcto por OID
-        // Orden: contentType (1.9.3), messageDigest (1.9.4), signingTime (1.9.5)
+        // 2. Crear authenticated attributes
+        // IMPORTANTE: Estos deben estar en orden DER para que SET y [0] IMPLICIT sean idénticos
         const authenticatedAttributes = [
             // contentType (OID 1.2.840.113549.1.9.3)
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
@@ -408,7 +408,7 @@ endobj
                         this.forge.asn1.oidToDer(this.forge.pki.oids.data).getBytes())
                 ])
             ]),
-            // messageDigest (OID 1.2.840.113549.1.9.4) - DEBE ir antes que signingTime
+            // messageDigest (OID 1.2.840.113549.1.9.4)
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
                 this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
                     this.forge.asn1.oidToDer(this.forge.pki.oids.messageDigest).getBytes()),
@@ -428,9 +428,14 @@ endobj
             ])
         ];
 
-        // 3. Calcular hash de los authenticated attributes y firmar
+        // 3. Ordenar attributes según DER para garantizar que SET y [0] sean idénticos
+        // Forge ordena automáticamente SET, pero debemos ordenar manualmente para [0]
+        const sortedAttrs = this.sortAttributesDER(authenticatedAttributes);
+        console.log('   - Attributes ordenados según DER');
+
+        // 4. Calcular hash de los authenticated attributes y firmar
         // IMPORTANTE: codificar como SET para firmar
-        const attrsAsn1 = this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, authenticatedAttributes);
+        const attrsAsn1 = this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, sortedAttrs);
         const attrsSetBytes = this.forge.asn1.toDer(attrsAsn1).getBytes();
 
         // Firmar el DER completo del SET (incluye tag 0x31, length, y contenido)
@@ -441,15 +446,15 @@ endobj
         const signature = privateKey.sign(attrsMd);
         console.log(`   - Firma RSA generada: ${signature.length} bytes`);
 
-        // 4. Crear estructura PKCS#7 SignedData completa
-        // Pasar el array de attributes - forge los codificará en [0] IMPLICIT
+        // 5. Crear estructura PKCS#7 SignedData completa
+        // IMPORTANTE: Usar sortedAttrs (ya ordenados) para [0] IMPLICIT
         const signedData = this.createSignedDataASN1(
             certificate,
-            authenticatedAttributes,  // Array de objetos ASN.1
+            sortedAttrs,  // Array ordenado - idéntico al SET firmado
             signature
         );
 
-        // 5. Envolver en ContentInfo
+        // 6. Envolver en ContentInfo
         const contentInfo = this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
             // contentType = id-signedData
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
@@ -470,9 +475,45 @@ endobj
     }
 
     /**
+     * Ordena authenticated attributes según codificación DER
+     * Esto garantiza que SET (al firmar) y [0] IMPLICIT (en SignerInfo) sean idénticos
+     * @param {Array} attributes - Array de objetos ASN.1
+     * @returns {Array} Array ordenado
+     */
+    sortAttributesDER(attributes) {
+        // Codificar cada atributo a DER y crear pares [attr, derBytes]
+        const attrsWithDer = attributes.map(attr => {
+            const derBytes = this.forge.asn1.toDer(attr).getBytes();
+            return { attr, derBytes };
+        });
+
+        // Ordenar por bytes DER (comparación lexicográfica)
+        attrsWithDer.sort((a, b) => {
+            const lenA = a.derBytes.length;
+            const lenB = b.derBytes.length;
+            const minLen = Math.min(lenA, lenB);
+
+            // Comparar byte por byte
+            for (let i = 0; i < minLen; i++) {
+                const byteA = a.derBytes.charCodeAt(i);
+                const byteB = b.derBytes.charCodeAt(i);
+                if (byteA !== byteB) {
+                    return byteA - byteB;
+                }
+            }
+
+            // Si todos los bytes son iguales hasta minLen, el más corto va primero
+            return lenA - lenB;
+        });
+
+        // Extraer solo los objetos ASN.1 ordenados
+        return attrsWithDer.map(item => item.attr);
+    }
+
+    /**
      * Crea la estructura ASN.1 SignedData
      * @param {Object} certificate - El certificado
-     * @param {Array} authenticatedAttributes - Array de objetos ASN.1 de los attributes
+     * @param {Array} authenticatedAttributes - Array de objetos ASN.1 de los attributes (ya ordenados)
      * @param {string} signature - La firma RSA
      */
     createSignedDataASN1(certificate, authenticatedAttributes, signature) {
