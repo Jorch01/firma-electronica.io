@@ -11,9 +11,10 @@ class PKCS7Signer {
     /**
      * Firma un PDF con PKCS#7 detached
      * @param {Uint8Array} pdfBytes - PDF a firmar
-     * @param {Object} certificate - Certificado forge
+     * @param {Object} certificate - Certificado forge del firmante
      * @param {Object} privateKey - Llave privada forge
      * @param {Object} options - Opciones de firma
+     * @param {Array} options.intermediateCerts - Certificados intermedios opcionales (forge certificates)
      * @returns {Uint8Array} PDF firmado
      */
     async signPDF(pdfBytes, certificate, privateKey, options = {}) {
@@ -21,10 +22,17 @@ class PKCS7Signer {
             reason = 'Firma Electrónica',
             location = 'México',
             contactInfo = '',
-            name = ''
+            name = '',
+            intermediateCerts = []
         } = options;
 
         console.log('🔐 Iniciando firma PKCS#7...');
+
+        // Preparar array de certificados: firmante + intermedios
+        const certificates = [certificate, ...intermediateCerts];
+        if (intermediateCerts.length > 0) {
+            console.log(`📜 Incluyendo ${intermediateCerts.length} certificado(s) intermedio(s)`);
+        }
 
         try {
             // 1. Preparar el PDF para la firma
@@ -84,8 +92,8 @@ class PKCS7Signer {
             const dataToSign = this.getDataToSign(pdfWithByteRange, byteRangeVerify);
             console.log('✅ Datos preparados para firma:', dataToSign.length, 'bytes');
 
-            // 6. Crear firma PKCS#7
-            const signature = this.createPKCS7Signature(dataToSign, certificate, privateKey);
+            // 6. Crear firma PKCS#7 (con certificado firmante + intermedios)
+            const signature = this.createPKCS7Signature(dataToSign, certificates, privateKey);
             console.log('✅ Firma PKCS#7 creada:', signature.length, 'bytes');
 
             // 7. Insertar firma en el PDF (SIN modificar ByteRange)
@@ -419,9 +427,20 @@ endobj
 
     /**
      * Crea la firma PKCS#7 detached construyendo la estructura manualmente
+     * @param {Uint8Array} data - Datos a firmar
+     * @param {Object|Array} certificates - Certificado del firmante o array [certificado, ...intermedios]
+     * @param {Object} privateKey - Llave privada
      */
-    createPKCS7Signature(data, certificate, privateKey) {
+    createPKCS7Signature(data, certificates, privateKey) {
         console.log('🔏 Generando firma PKCS#7 detached manualmente...');
+
+        // Soportar certificado único o array de certificados
+        const certArray = Array.isArray(certificates) ? certificates : [certificates];
+        const signerCert = certArray[0]; // El primer certificado es siempre el del firmante
+
+        if (certArray.length > 1) {
+            console.log(`   - Incluyendo ${certArray.length} certificados (firmante + ${certArray.length - 1} intermedios)`);
+        }
 
         const dataString = this.uint8ArrayToString(data);
 
@@ -473,7 +492,7 @@ endobj
 
         // 6. Crear estructura PKCS#7 SignedData completa
         const signedData = this.createSignedDataASN1(
-            certificate,
+            certificates,  // Pasar el array completo (firmante + intermedios)
             attrsImplicitBytes,  // Bytes con tag [0] IMPLICIT
             signature
         );
@@ -665,13 +684,22 @@ endobj
 
     /**
      * Crea la estructura ASN.1 SignedData
-     * @param {Object} certificate - El certificado
+     * @param {Object|Array} certificates - El certificado del firmante o array [certificado, ...intermedios]
      * @param {string} authenticatedAttributesBytes - Bytes de [0] IMPLICIT con attributes
      * @param {string} signature - La firma RSA
      */
-    createSignedDataASN1(certificate, authenticatedAttributesBytes, signature) {
-        // Convertir certificado a ASN.1
-        const certAsn1 = this.forge.pki.certificateToAsn1(certificate);
+    createSignedDataASN1(certificates, authenticatedAttributesBytes, signature) {
+        // Soportar certificado único o array de certificados
+        const certArray = Array.isArray(certificates) ? certificates : [certificates];
+
+        // El primer certificado es siempre el del firmante
+        const signerCert = certArray[0];
+
+        // Convertir todos los certificados a ASN.1
+        const certsAsn1 = certArray.map(cert => this.forge.pki.certificateToAsn1(cert));
+
+        // Extraer issuer y serialNumber del certificado del firmante
+        const certAsn1 = certsAsn1[0];
 
         // Extraer issuer y serialNumber directamente del certificado ASN.1 (sin re-codificar)
         // certAsn1.value[0] es TBSCertificate
@@ -729,8 +757,8 @@ endobj
                     this.forge.asn1.oidToDer(this.forge.pki.oids.data).getBytes())
                 // NO incluir eContent - esto lo hace detached
             ]),
-            // certificates [0] IMPLICIT
-            this.forge.asn1.create(this.forge.asn1.Class.CONTEXT_SPECIFIC, 0, true, [certAsn1]),
+            // certificates [0] IMPLICIT - incluir certificado del firmante + intermedios
+            this.forge.asn1.create(this.forge.asn1.Class.CONTEXT_SPECIFIC, 0, true, certsAsn1),
             // signerInfos
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [signerInfo])
         ]);
