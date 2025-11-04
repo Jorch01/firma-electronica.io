@@ -92,6 +92,17 @@ class PKCS7Signer {
             const signedPDF = this.insertSignatureOnly(pdfWithByteRange, signature);
             console.log('✅ Firma insertada en PDF');
 
+            // 8. VERIFICACIÓN FINAL: Comprobar que el ByteRange en el PDF final es correcto
+            const finalByteRange = this.calculateByteRange(signedPDF);
+            console.log('🔍 VERIFICACIÓN FINAL ByteRange:', finalByteRange);
+            if (JSON.stringify(byteRangeVerify) !== JSON.stringify(finalByteRange)) {
+                console.error('❌ ¡ALERTA! ByteRange cambió después de insertar firma!');
+                console.error('   Firmado con:', byteRangeVerify);
+                console.error('   Final:', finalByteRange);
+            } else {
+                console.log('✅ ByteRange correcto: no cambió después de insertar firma');
+            }
+
             return signedPDF;
 
         } catch (error) {
