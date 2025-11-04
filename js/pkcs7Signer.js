@@ -382,11 +382,11 @@ endobj
         console.log('   - Tamaño total PDF:', pdfBytes.length);
 
         // ByteRange: [inicio1 longitud1 inicio2 longitud2]
-        // Los delimitadores < y > SÍ deben estar en los datos firmados (ISO 32000-1)
-        // Solo se excluye el CONTENIDO hexadecimal entre < y >
+        // Adobe TAMBIÉN excluye < y > según el análisis de su PDF
+        // Excluir < y > permite que Adobe lea la estructura PKCS#7
         const range1Start = 0;
-        const range1Length = contentsStart;  // Incluye el "<" (hasta ANTES del primer hex digit)
-        const range2Start = contentsEnd;     // Incluye el ">" (desde el ">" hasta el final)
+        const range1Length = contentsStartIndex; // Hasta ANTES del "<"
+        const range2Start = contentsEnd + 1;     // Después del ">"
         const range2Length = pdfBytes.length - range2Start;
 
         const byteRange = [range1Start, range1Length, range2Start, range2Length];
