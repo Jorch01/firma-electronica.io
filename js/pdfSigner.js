@@ -98,7 +98,8 @@ class PDFSigner {
                     reason,
                     location,
                     contactInfo,
-                    name: window.certHandler.getSummary().name
+                    name: window.certHandler.getSummary().name,
+                    intermediateCerts: window.certHandler.intermediateCerts || []
                 }
             );
 

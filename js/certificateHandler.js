@@ -10,12 +10,56 @@ class CertificateHandler {
         this.certificateInfo = null;
         this.type = null;
         this.lastPassword = null; // Guardar contraseña para firma digital
+        this.intermediateCerts = []; // Certificados intermedios opcionales
 
         // Verificar que forge esté disponible
         if (typeof forge === 'undefined') {
             console.error('❌ ERROR CRÍTICO: node-forge no está cargado. Verifica la conexión a internet y que el CDN esté disponible.');
         } else {
             console.log('✅ CertificateHandler iniciado correctamente. forge versión:', forge.version || 'desconocida');
+        }
+
+        // TEMPORAL: Cargar certificados intermedios del CJF
+        this.loadHardcodedIntermediateCerts();
+    }
+
+    /**
+     * TEMPORAL: Carga certificados intermedios hardcodeados para pruebas
+     * Reemplazar los PEM aquí con los certificados extraídos de test_firmado_adobe.pdf
+     */
+    loadHardcodedIntermediateCerts() {
+        // INSTRUCCIONES:
+        // 1. Abre extract_certs.html en tu navegador
+        // 2. Carga test_firmado_adobe.pdf
+        // 3. Copia los certificados intermedios (formato PEM)
+        // 4. Pégalos aquí en el array
+
+        const intermediateCertsPEM = [
+            // Ejemplo:
+            // `-----BEGIN CERTIFICATE-----
+            // MIIFXzCCBEegAwIBAgIUAP...
+            // -----END CERTIFICATE-----`,
+            //
+            // `-----BEGIN CERTIFICATE-----
+            // MIIFYzCCBEugAwIBAgIUAQ...
+            // -----END CERTIFICATE-----`
+        ];
+
+        try {
+            this.intermediateCerts = intermediateCertsPEM
+                .filter(pem => pem.trim().length > 0)
+                .map(pem => forge.pki.certificateFromPem(pem));
+
+            if (this.intermediateCerts.length > 0) {
+                console.log(`✅ Cargados ${this.intermediateCerts.length} certificado(s) intermedio(s) hardcodeado(s)`);
+                this.intermediateCerts.forEach((cert, i) => {
+                    const subject = cert.subject.attributes
+                        .find(attr => attr.shortName === 'CN')?.value || 'Unknown';
+                    console.log(`   [${i}] ${subject}`);
+                });
+            }
+        } catch (error) {
+            console.warn('⚠️ No se pudieron cargar certificados intermedios hardcodeados:', error.message);
         }
     }
 
