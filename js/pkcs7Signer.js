@@ -471,7 +471,43 @@ endobj
         // DEBUG: Analizar estructura ASN.1
         this.debugPKCS7Structure(derBuffer, contentInfo);
 
+        // DEBUG: Exportar firma para análisis externo
+        this.exportPKCS7ForAnalysis(derBuffer);
+
         return hexString;
+    }
+
+    /**
+     * Exporta la firma PKCS#7 como archivo para análisis con OpenSSL
+     */
+    exportPKCS7ForAnalysis(derBuffer) {
+        try {
+            console.log('\n📥 Exportando firma PKCS#7 para análisis externo...');
+
+            // Convertir string binario a Uint8Array
+            const uint8Array = new Uint8Array(derBuffer.length);
+            for (let i = 0; i < derBuffer.length; i++) {
+                uint8Array[i] = derBuffer.charCodeAt(i);
+            }
+
+            // Crear blob y descargar
+            const blob = new Blob([uint8Array], { type: 'application/pkcs7-signature' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'signature.p7s';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            console.log('✅ Firma exportada como signature.p7s');
+            console.log('💡 Analiza con: openssl pkcs7 -inform DER -in signature.p7s -print -noout');
+            console.log('💡 Ver certificados: openssl pkcs7 -inform DER -in signature.p7s -print_certs -noout');
+
+        } catch (error) {
+            console.error('❌ Error exportando firma:', error);
+        }
     }
 
     /**
