@@ -12,3 +12,5 @@ temp/*
 *.p12
 test-pdfs/*
 !test-pdfs/.gitkeep
+*.pem
+*.p7s
