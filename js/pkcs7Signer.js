@@ -44,11 +44,27 @@ class PKCS7Signer {
             // 3. CRÍTICO: Actualizar ByteRange en el PDF ANTES de firmar
             console.log('📝 Actualizando ByteRange en PDF...');
             const byteRangeStr = `[${byteRange.map(n => String(n).padStart(10, '0')).join(' ')}]`;
+            console.log('   ByteRange string:', byteRangeStr);
+            console.log('   ByteRange length:', byteRangeStr.length);
+
             let pdfStringTemp = this.uint8ArrayToString(pdfWithPlaceholder);
+            const oldByteRangeMatch = pdfStringTemp.match(/\/ByteRange\s*\[[^\]]*\]/);
+            if (oldByteRangeMatch) {
+                console.log('   ByteRange anterior:', oldByteRangeMatch[0]);
+                console.log('   ByteRange anterior length:', oldByteRangeMatch[0].length);
+            }
+
             pdfStringTemp = pdfStringTemp.replace(
                 /\/ByteRange\s*\[[^\]]*\]/,
                 `/ByteRange ${byteRangeStr}`
             );
+
+            const newByteRangeMatch = pdfStringTemp.match(/\/ByteRange\s*\[[^\]]*\]/);
+            if (newByteRangeMatch) {
+                console.log('   ByteRange nuevo:', newByteRangeMatch[0]);
+                console.log('   ByteRange nuevo length:', newByteRangeMatch[0].length);
+            }
+
             const pdfWithByteRange = this.stringToUint8Array(pdfStringTemp);
             console.log('✅ ByteRange actualizado en PDF');
 
@@ -338,20 +354,26 @@ endobj
         }
 
         // Posición del < antes del contenido hex
-        const contentsStart = contentsMatch.index + contentsMatch[0].indexOf('<') + 1;
+        const contentsStartIndex = contentsMatch.index + contentsMatch[0].indexOf('<');
+        const contentsStart = contentsStartIndex + 1; // Primer hex digit
         const contentsLength = contentsMatch[1].length;
-        const contentsEnd = contentsStart + contentsLength;
+        const contentsEnd = contentsStart + contentsLength; // Posición después del último hex digit
 
-        console.log('🔍 ByteRange Debug:');
-        console.log('   - Posición inicio placeholder:', contentsStart);
-        console.log('   - Longitud placeholder:', contentsLength);
-        console.log('   - Posición fin placeholder:', contentsEnd);
+        console.log('🔍 ByteRange Debug DETALLADO:');
+        console.log('   - Match completo:', contentsMatch[0].substring(0, 80));
+        console.log('   - Posición del "<":', contentsStartIndex);
+        console.log('   - Posición primer hex digit:', contentsStart);
+        console.log('   - Longitud placeholder hex:', contentsLength);
+        console.log('   - Posición después último hex:', contentsEnd);
+        console.log('   - Carácter en posición contentsEnd:', JSON.stringify(pdfString.charAt(contentsEnd)));
+        console.log('   - Contexto contentsEnd:', JSON.stringify(pdfString.substring(contentsEnd - 10, contentsEnd + 10)));
         console.log('   - Tamaño total PDF:', pdfBytes.length);
 
         // ByteRange: [inicio1 longitud1 inicio2 longitud2]
+        // Los delimitadores < y > NO deben estar en los datos firmados
         const range1Start = 0;
-        const range1Length = contentsStart - 1; // Hasta antes del <
-        const range2Start = contentsEnd + 1;    // Después del >
+        const range1Length = contentsStartIndex; // Hasta ANTES del "<" (no incluye "<")
+        const range2Start = contentsEnd + 1;     // Después del ">" (no incluye ">")
         const range2Length = pdfBytes.length - range2Start;
 
         const byteRange = [range1Start, range1Length, range2Start, range2Length];
