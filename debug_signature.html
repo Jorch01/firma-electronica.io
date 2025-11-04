@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Firma PKCS#7</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .container {
+            background: #252526;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+        h1 {
+            color: #4ec9b0;
+            border-bottom: 2px solid #4ec9b0;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #569cd6;
+            margin-top: 20px;
+        }
+        .upload-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px dashed #569cd6;
+            border-radius: 4px;
+            text-align: center;
+            background: #1e1e1e;
+        }
+        .button {
+            background-color: #0e639c;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-family: 'Courier New', monospace;
+        }
+        .button:hover {
+            background-color: #1177bb;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .section {
+            background: #1e1e1e;
+            border-left: 4px solid #569cd6;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .section.success {
+            border-left-color: #4ec9b0;
+        }
+        .section.error {
+            border-left-color: #f48771;
+        }
+        .section.warning {
+            border-left-color: #dcdcaa;
+        }
+        .code {
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            padding: 10px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .highlight {
+            color: #4ec9b0;
+            font-weight: bold;
+        }
+        .error-text {
+            color: #f48771;
+        }
+        .success-text {
+            color: #4ec9b0;
+        }
+        .warning-text {
+            color: #dcdcaa;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Analizador de Firma PKCS#7</h1>
+
+        <div class="upload-section">
+            <input type="file" id="pdfFile" accept=".pdf" style="margin-bottom: 10px; color: #d4d4d4;">
+            <br>
+            <button class="button" onclick="analyzePDF()">🔬 Analizar Firma</button>
+        </div>
+
+        <div id="results" class="results"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/0.10.0/forge.min.js"></script>
+    <script>
+        function uint8ArrayToString(uint8Array) {
+            return Array.from(uint8Array).map(byte => String.fromCharCode(byte)).join('');
+        }
+
+        async function analyzePDF() {
+            const fileInput = document.getElementById('pdfFile');
+            const resultsDiv = document.getElementById('results');
+
+            if (!fileInput.files.length) {
+                resultsDiv.innerHTML = '<div class="section error">❌ Por favor selecciona un PDF firmado</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="section">⏳ Analizando PDF...</div>';
+
+            try {
+                const file = fileInput.files[0];
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfBytes = new Uint8Array(arrayBuffer);
+                const pdfString = uint8ArrayToString(pdfBytes);
+
+                let html = '<h2>📊 Análisis Completo</h2>';
+
+                // 1. Buscar ByteRange
+                const byteRangeMatch = pdfString.match(/\/ByteRange\s*\[([^\]]+)\]/);
+                if (!byteRangeMatch) {
+                    throw new Error('No se encontró ByteRange en el PDF');
+                }
+
+                const byteRangeStr = byteRangeMatch[1].trim();
+                const byteRange = byteRangeStr.split(/\s+/).map(n => parseInt(n));
+
+                html += '<div class="section success">';
+                html += '<h3>✅ ByteRange Encontrado</h3>';
+                html += `<div class="code">ByteRange: [${byteRange.join(', ')}]</div>`;
+                html += `<pre>Range 1: bytes ${byteRange[0]} a ${byteRange[0] + byteRange[1] - 1} (${byteRange[1]} bytes)</pre>`;
+                html += `<pre>Range 2: bytes ${byteRange[2]} a ${byteRange[2] + byteRange[3] - 1} (${byteRange[3]} bytes)</pre>`;
+                html += '</div>';
+
+                // 2. Buscar Contents (firma)
+                const contentsMatch = pdfString.match(/\/Contents\s*<([0-9a-fA-F]+)>/);
+                if (!contentsMatch) {
+                    throw new Error('No se encontró /Contents (firma) en el PDF');
+                }
+
+                const signatureHex = contentsMatch[1];
+                const contentsPos = pdfString.indexOf('/Contents <');
+                const contentsStart = pdfString.indexOf('<', contentsPos);
+                const contentsEnd = pdfString.indexOf('>', contentsStart);
+
+                html += '<div class="section success">';
+                html += '<h3>✅ Firma Encontrada</h3>';
+                html += `<pre>Posición del &lt;: ${contentsStart}</pre>`;
+                html += `<pre>Posición del &gt;: ${contentsEnd}</pre>`;
+                html += `<pre>Tamaño firma (hex): ${signatureHex.length} caracteres (${signatureHex.length/2} bytes)</pre>`;
+                html += '</div>';
+
+                // 3. Verificar ByteRange vs posiciones reales
+                html += '<div class="section">';
+                html += '<h3>🔍 Verificación ByteRange</h3>';
+
+                const expectedRange1End = contentsStart;
+                const expectedRange2Start = contentsEnd + 1;
+                const expectedRange2End = pdfBytes.length;
+
+                const range1Correct = byteRange[0] === 0 && byteRange[1] === expectedRange1End;
+                const range2Correct = byteRange[2] === expectedRange2Start &&
+                                     byteRange[3] === (expectedRange2End - expectedRange2Start);
+
+                if (range1Correct && range2Correct) {
+                    html += '<div class="success-text">✅ ByteRange CORRECTO</div>';
+                } else {
+                    html += '<div class="error-text">❌ ByteRange INCORRECTO</div>';
+                    html += '<pre class="code">';
+                    html += `Esperado: [0, ${expectedRange1End}, ${expectedRange2Start}, ${expectedRange2End - expectedRange2Start}]\n`;
+                    html += `Actual:   [${byteRange.join(', ')}]\n`;
+                    html += '</pre>';
+                }
+                html += '</div>';
+
+                // 4. Calcular hash del contenido según ByteRange
+                const data1 = pdfBytes.slice(byteRange[0], byteRange[0] + byteRange[1]);
+                const data2 = pdfBytes.slice(byteRange[2], byteRange[2] + byteRange[3]);
+                const dataToVerify = new Uint8Array(data1.length + data2.length);
+                dataToVerify.set(data1, 0);
+                dataToVerify.set(data2, data1.length);
+
+                const md = forge.md.sha256.create();
+                md.update(uint8ArrayToString(dataToVerify));
+                const calculatedHash = md.digest().toHex();
+
+                html += '<div class="section success">';
+                html += '<h3>🔐 Hash del Contenido (según ByteRange)</h3>';
+                html += `<div class="code">SHA-256: ${calculatedHash}</div>`;
+                html += '</div>';
+
+                // 5. Parsear PKCS#7
+                const signatureBytes = forge.util.hexToBytes(signatureHex);
+                const p7Asn1 = forge.asn1.fromDer(signatureBytes);
+                const contentInfo = p7Asn1;
+                const signedData = contentInfo.value[1].value[0];
+
+                // Extraer messageDigest de los authenticated attributes
+                const signerInfo = signedData.value[4].value[0]; // signerInfos
+                const signedAttrs = signerInfo.value[3]; // authenticated attributes [0] IMPLICIT
+
+                html += '<div class="section success">';
+                html += '<h3>📋 Authenticated Attributes</h3>';
+                let messageDigestFromSig = null;
+
+                for (let i = 0; i < signedAttrs.value.length; i++) {
+                    const attr = signedAttrs.value[i];
+                    const attrOid = forge.asn1.derToOid(attr.value[0].value);
+                    const attrName = getOIDName(attrOid);
+
+                    if (attrOid === '1.2.840.113549.1.9.4') { // messageDigest
+                        const digestOctetString = attr.value[1].value[0];
+                        messageDigestFromSig = forge.util.bytesToHex(digestOctetString.value);
+                        html += `<pre class="highlight">✓ ${attrName} (${attrOid}): ${messageDigestFromSig}</pre>`;
+                    } else {
+                        html += `<pre>✓ ${attrName} (${attrOid})</pre>`;
+                    }
+                }
+                html += '</div>';
+
+                // 6. Comparar hashes
+                html += '<div class="section">';
+                html += '<h3>🔬 Verificación de Integridad</h3>';
+                html += '<div class="code">';
+                html += `<pre>Hash calculado del PDF:     ${calculatedHash}</pre>`;
+                html += `<pre>Hash en messageDigest:      ${messageDigestFromSig}</pre>`;
+                html += '</div>';
+
+                if (calculatedHash === messageDigestFromSig) {
+                    html += '<div class="success-text">✅ Los hashes COINCIDEN - La firma cubre correctamente el contenido</div>';
+                } else {
+                    html += '<div class="error-text">❌ Los hashes NO COINCIDEN - ERROR GRAVE</div>';
+                    html += '<div class="warning-text">Esto explica por qué Adobe dice "errores en el formato o en la información"</div>';
+                }
+                html += '</div>';
+
+                // 7. Certificados
+                const certificates = signedData.value[3];
+                html += '<div class="section success">';
+                html += '<h3>📜 Certificados en la Firma</h3>';
+                html += `<pre>Cantidad: ${certificates.value.length}</pre>`;
+
+                for (let i = 0; i < certificates.value.length; i++) {
+                    const cert = forge.pki.certificateFromAsn1(certificates.value[i]);
+                    const cn = cert.subject.attributes.find(attr => attr.shortName === 'CN')?.value || 'Unknown';
+                    const issuerCN = cert.issuer.attributes.find(attr => attr.shortName === 'CN')?.value || 'Unknown';
+                    html += `<pre>[${i}] ${cn}</pre>`;
+                    html += `<pre>    Emitido por: ${issuerCN}</pre>`;
+                }
+                html += '</div>';
+
+                // 8. Algoritmos
+                const digestAlgOid = forge.asn1.derToOid(signedData.value[1].value[0].value[0].value);
+                const sigAlgOid = forge.asn1.derToOid(signerInfo.value[4].value[0].value);
+
+                html += '<div class="section success">';
+                html += '<h3>🔧 Algoritmos</h3>';
+                html += `<pre>Digest Algorithm: ${getOIDName(digestAlgOid)} (${digestAlgOid})</pre>`;
+                html += `<pre>Signature Algorithm: ${getOIDName(sigAlgOid)} (${sigAlgOid})</pre>`;
+                html += '</div>';
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="section error"><strong>❌ Error:</strong> ${error.message}</div>`;
+                console.error('Error:', error);
+            }
+        }
+
+        function getOIDName(oid) {
+            const oidNames = {
+                '1.2.840.113549.1.7.1': 'data',
+                '1.2.840.113549.1.7.2': 'signedData',
+                '1.2.840.113549.1.9.3': 'contentType',
+                '1.2.840.113549.1.9.4': 'messageDigest',
+                '1.2.840.113549.1.9.5': 'signingTime',
+                '2.16.840.1.101.3.4.2.1': 'sha256',
+                '1.2.840.113549.1.1.1': 'rsaEncryption',
+                '1.2.840.113549.1.1.11': 'sha256WithRSAEncryption'
+            };
+            return oidNames[oid] || 'unknown';
+        }
+    </script>
+</body>
+</html>
