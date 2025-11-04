@@ -646,12 +646,11 @@ endobj
         // Convertir certificado a ASN.1
         const certAsn1 = this.forge.pki.certificateToAsn1(certificate);
 
-        // Convertir issuer (Distinguished Name) a ASN.1
-        const issuerAsn1 = this.forge.pki.distinguishedNameToAsn1(certificate.issuer);
-
-        // Obtener serialNumber directamente del certificado ASN.1
-        // certAsn1.value[0] es TBSCertificate, .value[1] es serialNumber
-        const serialNumberAsn1 = certAsn1.value[0].value[1];
+        // Extraer issuer y serialNumber directamente del certificado ASN.1 (sin re-codificar)
+        // certAsn1.value[0] es TBSCertificate
+        const tbsCert = certAsn1.value[0];
+        const issuerAsn1 = tbsCert.value[3];       // Issuer está en posición 3
+        const serialNumberAsn1 = tbsCert.value[1]; // SerialNumber está en posición 1
 
         // Parsear [0] IMPLICIT bytes a objeto ASN.1
         const attrsImplicitAsn1 = this.forge.asn1.fromDer(this.forge.util.createBuffer(authenticatedAttributesBytes));
