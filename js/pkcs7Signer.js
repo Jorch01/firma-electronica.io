@@ -450,8 +450,19 @@ endobj
         const contentDigest = md.digest();
         console.log(`   - Hash SHA-256: ${contentDigest.toHex().substring(0, 32)}...`);
 
-        // 2. Crear authenticated attributes (solo contentType y messageDigest como Adobe)
+        // 2. Crear authenticated attributes (igual que Adobe: adbe-revocationInfoArchival, contentType, messageDigest)
         const authenticatedAttributes = [
+            // adbe-revocationInfoArchival (OID 1.2.840.113583.1.1.8) - PRIMERO (orden DER)
+            // Adobe usa este atributo para Long Term Validation (LTV)
+            // Por ahora lo dejamos vacío como hace Adobe cuando no hay información de revocación
+            this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
+                    this.forge.asn1.oidToDer('1.2.840.113583.1.1.8').getBytes()),
+                this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SET, true, [
+                    // SEQUENCE vacío - sin información de revocación
+                    this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [])
+                ])
+            ]),
             // contentType (OID 1.2.840.113549.1.9.3)
             this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.SEQUENCE, true, [
                 this.forge.asn1.create(this.forge.asn1.Class.UNIVERSAL, this.forge.asn1.Type.OID, false,
@@ -470,7 +481,7 @@ endobj
                         contentDigest.bytes())
                 ])
             ])
-            // NOTA: Adobe NO incluye signingTime, solo contentType y messageDigest
+            // NOTA: Adobe NO incluye signingTime en authenticated attributes
         ];
 
         // 3. Codificar como SET - forge ordena automáticamente según DER
@@ -657,6 +668,7 @@ endobj
             '1.2.840.113549.1.9.3': 'contentType',
             '1.2.840.113549.1.9.4': 'messageDigest',
             '1.2.840.113549.1.9.5': 'signingTime',
+            '1.2.840.113583.1.1.8': 'adbe-revocationInfoArchival',
             '2.16.840.1.101.3.4.2.1': 'sha256',
             '1.2.840.113549.1.1.1': 'rsaEncryption',
             '1.2.840.113549.1.1.11': 'sha256WithRSAEncryption'
